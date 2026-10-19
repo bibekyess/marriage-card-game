@@ -1,0 +1,10 @@
+{
+  "name": "Marriage — Nepali card table",
+  "short_name": "Marriage",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#07120f",
+  "theme_color": "#07120f",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

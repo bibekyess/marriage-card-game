@@ -1,0 +1,106 @@
+import { CardId, maalKind } from "./cards";
+import { isTunnel } from "./melds";
+import { Settings } from "./settings";
+
+export interface MaalBreakdown {
+  tiplu: number;
+  poplu: number;
+  jhiplu: number;
+  alter: number;
+  marriages: number;
+  tunnels: number;
+  points: number;
+}
+
+/** Maal points held by one player. `groups` are the sets they showed (tunnels score). */
+export function maalPoints(cards: CardId[], groups: CardId[][], maal: CardId, s: Settings): MaalBreakdown {
+  const b = { tiplu: 0, poplu: 0, jhiplu: 0, alter: 0, marriages: 0, tunnels: 0, points: 0 };
+  for (const c of cards) {
+    const k = maalKind(c, maal);
+    if (k && k !== "joker") b[k]++;
+  }
+  b.marriages = Math.min(b.tiplu, b.poplu, b.jhiplu);
+  b.tunnels = groups.filter(isTunnel).length;
+  const single = s.tiplu + 2 * s.popluJhiplu;
+  b.points =
+    b.tiplu * s.tiplu +
+    (b.poplu + b.jhiplu) * s.popluJhiplu +
+    (b.alter ? s.alter[Math.min(b.alter, 3) - 1] : 0) +
+    b.marriages * (s.marriage - single) +
+    b.tunnels * s.tunnel;
+  return b;
+}
+
+export interface PlayerRoundInput {
+  id: string;
+  seen: boolean;
+  cards: CardId[]; // every card they hold, shown or not
+  shown: CardId[][];
+}
+
+export interface PlayerRoundResult {
+  id: string;
+  seen: boolean;
+  maal: number; // maal points used in the calculation
+  rawMaal: number; // maal points before murder/kidnap was applied
+  breakdown: MaalBreakdown;
+  points: number; // round result, sums to 0 across players
+}
+
+/**
+ * Standard Nepali settlement: every pair of players settles the difference of their maal,
+ * so each player gets N × own maal − total maal. On top, every other player pays the winner
+ * `seenPoints` (saw the maal) or `unseenPoints` (didn't), plus a dublee bonus.
+ */
+export function scoreRound(
+  players: PlayerRoundInput[],
+  winnerId: string,
+  maal: CardId,
+  s: Settings,
+  winByDublee: boolean,
+): PlayerRoundResult[] {
+  const rows: PlayerRoundResult[] = players.map((p) => {
+    const breakdown = maalPoints(p.cards, p.shown, maal, s);
+    const counted = p.seen || s.unseenRule === "count";
+    return { id: p.id, seen: p.seen, rawMaal: breakdown.points, maal: counted ? breakdown.points : 0, breakdown, points: 0 };
+  });
+  const winner = rows.find((r) => r.id === winnerId)!;
+  if (s.unseenRule === "kidnap") for (const r of rows) if (!r.seen && r !== winner) winner.maal += r.rawMaal;
+
+  const n = rows.length;
+  const total = rows.reduce((a, r) => a + r.maal, 0);
+  for (const r of rows) r.points = n * r.maal - total;
+  for (const r of rows) {
+    if (r === winner) continue;
+    const bonus = (r.seen ? s.seenPoints : s.unseenPoints) + (winByDublee ? s.dubleeBonus : 0);
+    r.points -= bonus;
+    winner.points += bonus;
+  }
+  return rows;
+}
+
+export interface Transfer {
+  from: string;
+  to: string;
+  amount: number;
+}
+
+/** Fewest payments that settle everyone's net balance (positive = is owed money). */
+export function settle(net: Record<string, number>): Transfer[] {
+  const round2 = (x: number) => Math.round(x * 100) / 100;
+  const debtors = Object.entries(net).filter(([, v]) => v < -0.004).map(([id, v]) => ({ id, v: -v }));
+  const creditors = Object.entries(net).filter(([, v]) => v > 0.004).map(([id, v]) => ({ id, v }));
+  debtors.sort((a, b) => b.v - a.v);
+  creditors.sort((a, b) => b.v - a.v);
+  const out: Transfer[] = [];
+  let i = 0, j = 0;
+  while (i < debtors.length && j < creditors.length) {
+    const amt = Math.min(debtors[i].v, creditors[j].v);
+    if (amt > 0.004) out.push({ from: debtors[i].id, to: creditors[j].id, amount: round2(amt) });
+    debtors[i].v -= amt;
+    creditors[j].v -= amt;
+    if (debtors[i].v < 0.005) i++;
+    if (creditors[j].v < 0.005) j++;
+  }
+  return out;
+}
