@@ -1,0 +1,93 @@
+import { expect, Page, test } from "@playwright/test";
+
+async function startPractice(page: Page, rounds = "1", bots = "1") {
+  await page.goto("/");
+  await page.fill("#name", "Tester");
+  await page.getByRole("button", { name: "Practice with bots" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: bots, exact: true }).first().click();
+  await dialog.getByRole("button", { name: rounds === "0" ? "∞" : rounds, exact: true }).last().click();
+  await dialog.getByRole("button", { name: "Deal", exact: true }).click();
+  await expect(page.getByTestId("hand")).toBeVisible();
+}
+
+async function waitMyTurn(page: Page) {
+  await expect(page.getByTestId("hint")).toContainText("Your turn", { timeout: 30_000 });
+}
+
+test("play a turn, refresh, and keep the same seat and cards", async ({ page }) => {
+  await startPractice(page, "3", "2");
+  await waitMyTurn(page);
+  await page.getByTestId("stock").click();
+  await expect(page.getByTestId("discard-btn")).toBeVisible();
+  const cards = page.locator("[data-card]");
+  await expect(cards).toHaveCount(22);
+  const thrown = await cards.first().getAttribute("data-card");
+  await cards.first().click();
+  await page.getByTestId("discard-btn").click();
+  await expect(cards).toHaveCount(21);
+
+  const before = await cards.evaluateAll((els) => els.map((e) => e.getAttribute("data-card")).sort());
+  expect(before).not.toContain(thrown);
+  await page.reload();
+  await expect(page.getByTestId("hand")).toBeVisible();
+  await expect(page.locator("[data-card]")).toHaveCount(21);
+  const after = await page.locator("[data-card]").evaluateAll((els) => els.map((e) => e.getAttribute("data-card")).sort());
+  expect(after).toEqual(before);
+});
+
+test("a bot plays a whole match for me and the settlement shows who pays", async ({ page }) => {
+  await startPractice(page, "1", "2");
+  await page.getByRole("button", { name: "Menu" }).click();
+  await page.getByRole("button", { name: "Let a bot play for me" }).click();
+  const result = page.getByTestId("round-result");
+  await expect(result).toBeVisible({ timeout: 60_000 });
+  await expect(result).toContainText(/won|called off/);
+  await page.getByTestId("next-round").click(); // last round → settle up
+  const sheet = page.getByTestId("score-sheet");
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByText("Who pays whom")).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "Share scorecard" })).toBeVisible();
+});
+
+test("two people at one table by code", async ({ browser }) => {
+  const hostCtx = await browser.newContext();
+  const guestCtx = await browser.newContext();
+  const host = await hostCtx.newPage();
+  const guest = await guestCtx.newPage();
+
+  await host.goto("/");
+  await host.fill("#name", "Host");
+  await host.getByRole("button", { name: "Create a table" }).click();
+  await host.getByRole("button", { name: "Open table" }).click();
+  await expect(host.getByText("Table code")).toBeVisible();
+  const code = host.url().split("/t/")[1];
+  expect(code).toMatch(/^[A-Z]{4}$/);
+
+  // Guest opens the shared link.
+  await guest.goto(`/t/${code}`);
+  await guest.fill("#join-name", "Guest");
+  await guest.getByRole("button", { name: "Join table" }).click();
+  await expect(guest.getByText(`Waiting for Host to deal`)).toBeVisible();
+  await expect(host.getByText("Guest")).toBeVisible();
+
+  await host.getByRole("button", { name: "Deal cards" }).click();
+  await expect(host.getByTestId("hand")).toBeVisible();
+  await expect(guest.getByTestId("hand")).toBeVisible();
+  await waitMyTurn(host);
+  await expect(guest.getByTestId("hint")).toContainText("Host is playing");
+
+  await host.getByTestId("stock").click();
+  await host.locator("[data-card]").first().click();
+  await host.getByTestId("discard-btn").click();
+  await waitMyTurn(guest);
+
+  // Guest's network drops and comes back: still seated, still their turn.
+  await guestCtx.setOffline(true);
+  await expect(guest.getByText("Reconnecting…")).toBeVisible({ timeout: 30_000 });
+  await guestCtx.setOffline(false);
+  await expect(guest.getByText("Reconnecting…")).toBeHidden({ timeout: 30_000 });
+  await waitMyTurn(guest);
+  await hostCtx.close();
+  await guestCtx.close();
+});

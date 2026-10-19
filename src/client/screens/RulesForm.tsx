@@ -94,8 +94,8 @@ export function RulesForm({ value: s, onChange, disabled }: Props) {
               </SelectTrigger>
               <SelectContent>
                 {CURRENCIES.map((c) => (
-                  <SelectItem key={c.code} value={c.code}>
-                    {c.code} <span className="text-muted-foreground">· {c.name}</span>
+                  <SelectItem key={c.code} value={c.code} title={c.name}>
+                    {c.code}
                   </SelectItem>
                 ))}
               </SelectContent>

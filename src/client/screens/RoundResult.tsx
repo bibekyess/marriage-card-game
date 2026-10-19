@@ -57,10 +57,12 @@ export function RoundResult({ view: v, open, onOpenChange, onScores }: { view: T
             </div>
             <div>
               <DialogTitle className="text-xl">
-                {r.winnerId === v.you ? "You won" : `${winner} won`} round {v.rounds[v.rounds.length - 1]?.round}
+                {!r.winnerId ? "Round called off" : r.winnerId === v.you ? "You won" : `${winner} won`} · round {v.rounds[v.rounds.length - 1]?.round}
               </DialogTitle>
               <DialogDescription>
-                {r.route === "dublee" ? "Finished with 8 dublees" : "Finished with complete sets"} · threw {cardLabel(r.discard)} · maal was {cardLabel(r.maal)}
+                {!r.winnerId
+                  ? "The stock ran out too many times — no points this round."
+                  : `${r.route === "dublee" ? "Finished with 8 dublees" : "Finished with complete sets"} · threw ${cardLabel(r.discard)} · maal was ${cardLabel(r.maal)}`}
               </DialogDescription>
             </div>
             <PlayingCard id={r.maal} width={40} maal={r.maal} className="ml-auto" />

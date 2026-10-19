@@ -137,7 +137,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   else hint = `${turnName} is playing…`;
 
   const discard = (c: CardId) => run("discard", { card: c });
-  const show = (route: "pure" | "dublee") => run("show", { route, cards: selected.size >= 9 ? [...selected] : [] }).then((ok) => ok && setSelected(new Set()));
+  const show = (route: "pure" | "dublee") => run("show", { route, cards: selected.size === (route === "pure" ? 9 : 14) ? [...selected] : [] }).then((ok) => ok && setSelected(new Set()));
   const declare = () => run("declare", { discard: one ?? h.finishDiscard });
 
   const myTotal = seated ? totals(v)[v.you] ?? 0 : 0;
@@ -256,7 +256,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
               <Button size="sm" variant="secondary" onClick={() => arrange(groupedOrder({ ...v, hand: order }, h))} aria-label="Group sets">
                 <Layers /> <span className="hidden sm:inline">Group</span>
               </Button>
-              {discardPhase && !h.seen && (h.canShowPure || selected.size >= 9) && (
+              {discardPhase && !h.seen && (h.canShowPure || selected.size === 9) && (
                 <Button size="sm" variant="felt" className="ring-1 ring-gold/60" onClick={() => show("pure")} data-testid="show-pure">
                   <Sparkles /> Show 3 pure
                 </Button>
