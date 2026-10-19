@@ -27,6 +27,7 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-marriage}:${POSTGRES_PASSWORD:-marriage}@db:5432/${POSTGRES_DB:-marriage}
       PORT: "3000"
+      TRUST_PROXY: ${TRUST_PROXY:-}
     ports:
       - "${APP_PORT:-3000}:3000"
 

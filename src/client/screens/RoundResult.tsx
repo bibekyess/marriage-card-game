@@ -40,7 +40,8 @@ export function RoundResult({ view: v, open, onOpenChange, onScores }: { view: T
   const winner = name(r.winnerId);
   const t = totals(v);
   const last = v.status === "matchEnd";
-  const rows = [...r.players].sort((a, b) => b.points - a.points);
+  // Winner first (they can still lose points if others held more maal), then by points.
+  const rows = [...r.players].sort((a, b) => Number(b.id === r.winnerId) - Number(a.id === r.winnerId) || b.points - a.points);
 
   const next = async () => {
     const res = await act("start");

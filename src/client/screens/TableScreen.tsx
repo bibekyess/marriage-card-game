@@ -8,7 +8,7 @@ import { Seat } from "@/components/game/Seat";
 import { PlayingCard } from "@/components/game/PlayingCard";
 import { Avatar } from "@/components/game/Avatar";
 import { computeHints, groupedOrder } from "@/lib/hints";
-import { roundLabel, signed, totals } from "@/lib/format";
+import { nameOf, roundLabel, signed, totals } from "@/lib/format";
 import { act } from "@/lib/store";
 import { sfx } from "@/lib/sound";
 import { cn } from "@/lib/utils";
@@ -107,8 +107,9 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   const [menu, setMenu] = useState(false);
   const [scores, setScores] = useState(false);
   const [resultOpen, setResultOpen] = useState(true);
-  const [lastThrow, setLastThrow] = useState<{ by: string; card: CardId } | null>(null);
   const [turnFlash, setTurnFlash] = useState(false);
+  const flashTimer = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(flashTimer.current), []);
 
   // Sounds and haptics on what changed.
   const prev = useRef(v);
@@ -119,12 +120,11 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
       sfx.turn();
       if (!me?.autoplay) {
         setTurnFlash(true);
-        setTimeout(() => setTurnFlash(false), 1300);
+        clearTimeout(flashTimer.current);
+        flashTimer.current = setTimeout(() => setTurnFlash(false), 1300);
       }
     } else if (p.discardTop !== v.discardTop || p.stockCount !== v.stockCount) sfx.card();
-    // Who threw the card now on top of the pile.
-    if (p.status === "playing" && v.status === "playing" && p.turn !== v.turn && v.discardTop && v.discardTop !== p.discardTop)
-      setLastThrow({ by: v.seats[p.turn]?.id === v.you ? "You" : v.seats[p.turn]?.name ?? "", card: v.discardTop });
+
     const seenCount = (x: TableView) => x.seats.filter((s) => s.seen).length;
     if (seenCount(v) > seenCount(p)) sfx.show();
     if (p.status === "playing" && v.status !== "playing" && v.reveal) {
@@ -241,7 +241,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
       </header>
 
       {/* Felt with opponents on the rim */}
-      <div className="relative flex min-h-0 flex-1 items-center px-3 pb-2 pt-1 sm:px-8">
+      <div className={cn("relative flex min-h-0 flex-1 px-3 pb-2 pt-1 sm:px-8", landscape ? "items-center" : "items-start pt-4")}>
         <div className="relative mx-auto h-full w-full max-w-[1100px]" style={{ maxHeight: landscape ? Math.max(240, (vp.w - 32) * 0.62) : (vp.w - 24) * 1.2 }}>
           <div className="felt absolute inset-x-0 rounded-[50%/46%]" style={{ top: seatSize * 0.55, bottom: 4 }} />
           {others.map((idx, k) => {
@@ -276,11 +276,11 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
               stockCount={v.stockCount}
               discardTop={v.discardTop}
               discardUnder={v.discardRecent.length > 1 ? v.discardRecent[v.discardRecent.length - 2] : null}
-              maal={v.maal}
+              maal={v.maal ?? (!playing ? v.reveal?.maal ?? null : null)}
               maalHidden={v.maalHidden}
               canDraw={canDraw}
               canPickDiscard={canDraw && h.canPickDiscard}
-              thrownBy={lastThrow && lastThrow.card === v.discardTop ? lastThrow.by : null}
+              thrownBy={v.discardBy ? (v.discardBy === v.you ? "You" : nameOf(v, v.discardBy)) : null}
               onDraw={(from) => run("draw", { from })}
             />
           </div>
@@ -359,6 +359,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
               onToggle={toggle}
               onReorder={arrange}
               onSwipeUp={discardPhase ? (c) => c !== v.picked && discard(c) : undefined}
+              dealKey={`${v.code}:${v.round}`}
             />
           </div>
         </div>
@@ -376,7 +377,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
         />
       )}
       {!playing && (!resultOpen || !v.reveal) && (
-        <div className="absolute bottom-6 left-1/2 z-30 flex -translate-x-1/2 gap-2">
+        <div className="safe-pb flex shrink-0 justify-center gap-2 px-3 pt-2">
           {v.reveal && (
             <Button variant="secondary" size="lg" onClick={() => setResultOpen(true)}>
               <Trophy /> Round results

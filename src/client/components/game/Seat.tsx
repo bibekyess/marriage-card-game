@@ -33,7 +33,8 @@ export function Seat({ seat, active, dealer, progress, maal, size = 46, showSets
             D
           </span>
         )}
-        {/* Face-down fan with the card count */}
+        {/* Face-down fan with the card count (hidden between rounds) */}
+        {seat.cardCount > 0 && (
         <div className={cn("absolute bottom-0 flex items-end", fanLeft ? "-left-5 flex-row-reverse" : "-right-5")} aria-label={`${seat.cardCount} cards`}>
           {Array.from({ length: fan }, (_, i) => (
             <PlayingCard
@@ -45,6 +46,7 @@ export function Seat({ seat, active, dealer, progress, maal, size = 46, showSets
           ))}
           <span className={cn("absolute -bottom-1 rounded-full", fanLeft ? "-left-2" : "-right-2", " bg-[#0b1713] px-1.5 text-[10px] font-bold tabular-nums leading-4 text-white ring-1 ring-white/15")}>{seat.cardCount}</span>
         </div>
+        )}
       </div>
       <div
         className={cn(

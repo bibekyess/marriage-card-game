@@ -275,7 +275,9 @@ export async function startServer(opts: ServerOptions) {
   io.on("connection", (socket) => {
     // Behind a reverse proxy set TRUST_PROXY=1 so the client's real address is used.
     const fwd = socket.handshake.headers["x-forwarded-for"];
-    const ip = (process.env.TRUST_PROXY && typeof fwd === "string" && fwd.split(",")[0].trim()) || socket.handshake.address || "?";
+    // Use the hop our own proxy appended (the last one); earlier entries can be forged by the client.
+    const trust = !!process.env.TRUST_PROXY && process.env.TRUST_PROXY !== "0" && process.env.TRUST_PROXY !== "false";
+    const ip = (trust && typeof fwd === "string" && fwd.split(",").at(-1)!.trim()) || socket.handshake.address || "?";
     socket.data.lastCreate = 0;
     socket.data.lastJoin = 0;
 

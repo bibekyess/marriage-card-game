@@ -64,6 +64,7 @@ export interface TableView {
   phase: "draw" | "discard";
   stockCount: number;
   discardTop: CardId | null;
+  discardBy: string | null; // player id
   discardRecent: CardId[];
   maal: CardId | null; // visible only once you've seen
   maalHidden: boolean;

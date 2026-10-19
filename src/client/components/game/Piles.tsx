@@ -39,7 +39,9 @@ export function Piles({ cw, stockCount, discardTop, discardUnder, maal, maalHidd
         <div className={cn("relative rounded-lg transition-transform", canDraw && "hover:-translate-y-1")}>
           <PlayingCard width={cw} className="absolute left-[3px] top-[3px] opacity-60" />
           <PlayingCard width={cw} className={cn("relative", canDraw && "ring-2 ring-gold shadow-[0_0_20px_rgba(245,184,61,.5)]")} />
-          <span className="absolute -right-2 -top-2 rounded-full bg-[#0b1713] px-1.5 text-[10px] font-bold tabular-nums ring-1 ring-white/15">{stockCount}</span>
+          {stockCount > 0 && (
+            <span className="absolute -right-2 -top-2 rounded-full bg-[#0b1713] px-1.5 text-[10px] font-bold tabular-nums ring-1 ring-white/15">{stockCount}</span>
+          )}
         </div>
         <Caption active={canDraw}>Stock</Caption>
       </button>
@@ -70,13 +72,15 @@ export function Piles({ cw, stockCount, discardTop, discardUnder, maal, maalHidd
           {discardUnder && <PlayingCard id={discardUnder} width={cw} maal={maal} className="absolute left-[-3px] top-[2px] rotate-[-6deg] opacity-80" />}
           {discardTop ? (
             // Keyed by card so every new throw lands with a little drop.
-            <div key={discardTop} className="relative rotate-[3deg] motion-safe:animate-card-drop">
-              <PlayingCard
-                id={discardTop}
-                width={cw}
-                maal={maal}
-                className={cn("transition-transform", canPick && "ring-2 ring-gold/70 hover:-translate-y-1")}
-              />
+            <div className="relative rotate-[3deg]">
+              <div key={discardTop} className="motion-safe:animate-card-drop">
+                <PlayingCard
+                  id={discardTop}
+                  width={cw}
+                  maal={maal}
+                  className={cn("transition-transform", canPick && "ring-2 ring-gold/70 hover:-translate-y-1")}
+                />
+              </div>
             </div>
           ) : (
             <div className="rounded-lg border-2 border-dashed border-white/20" style={{ width: cw, height: cw * 1.42 }} />

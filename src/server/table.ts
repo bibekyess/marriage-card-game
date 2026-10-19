@@ -44,6 +44,8 @@ export interface RoundState {
   shown: Record<string, CardId[][]>;
   deadline: number | null;
   reshuffles?: number;
+  /** Who threw the card on top of the discard pile. */
+  discardBy?: string | null;
 }
 
 export interface TableState {
@@ -388,6 +390,7 @@ export class Table {
       if (!g.seen[id] && this.s.settings.restrictPickup && !completesPure(hand, top, this.dubleeOk()))
         fail("Before seeing the maal you can only pick up a card that completes a pure set" + (this.dubleeOk() ? " or a dublee." : "."));
       c = g.discard.pop()!;
+      g.discardBy = null;
       g.picked = c;
       this.log(`${this.nameOf(id)} picked up ${cardLabel(c)}.`);
     } else {
@@ -414,6 +417,7 @@ export class Table {
     if (c === g.picked) fail("You can't throw back the card you just picked up.");
     hand.splice(hand.indexOf(c), 1);
     g.discard.push(c);
+    g.discardBy = id;
     this.advance();
   }
 
@@ -690,6 +694,7 @@ export class Table {
       phase: g?.phase ?? "draw",
       stockCount: g?.stock.length ?? 0,
       discardTop: g?.discard[g.discard.length - 1] ?? null,
+      discardBy: g?.discardBy ?? null,
       discardRecent: g?.discard.slice(-6) ?? [],
       maal: g && seen ? g.maal : null,
       maalHidden: !!g && !seen,

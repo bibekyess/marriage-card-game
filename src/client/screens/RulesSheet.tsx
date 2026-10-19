@@ -46,13 +46,16 @@ export function RulesSheet({ open, onOpenChange, settings = DEFAULT_SETTINGS }: 
           </section>
           <section className="space-y-2">
             <h3 className="font-bold text-gold">2 · Wild cards</h3>
-            <p className="text-muted-foreground">Once you've seen the maal, these cards are wild and can stand in for any card in a set:</p>
+            <p className="text-muted-foreground">
+              Once you've seen the maal, these cards are wild and can stand in for any card in a set. They're marked with a star:{" "}
+              <b className="text-gold">gold ★</b> scores points, <b className="text-zinc-300">silver ★</b> is a Joker (wild, no points).
+            </p>
             <ul className="grid grid-cols-2 gap-2 text-xs">
-              <li className="rounded-lg bg-black/20 p-2"><b>T · Tiplu</b> — the maal card ({s.tiplu} pts)</li>
-              <li className="rounded-lg bg-black/20 p-2"><b>P · Poplu</b> — one above, same suit ({s.popluJhiplu})</li>
-              <li className="rounded-lg bg-black/20 p-2"><b>J · Jhiplu</b> — one below, same suit ({s.popluJhiplu})</li>
-              <li className="rounded-lg bg-black/20 p-2"><b>A · Alter</b> — same rank &amp; colour ({s.alter.join("/")})</li>
-              <li className="col-span-2 rounded-lg bg-black/20 p-2"><b>★ Joker</b> — same rank, other colour (wild, no points). Tiplu + Poplu + Jhiplu = <b>Marriage</b> ({s.marriage}).</li>
+              <li className="rounded-lg bg-black/20 p-2"><b>★ Tiplu</b> — the maal card ({s.tiplu} pts)</li>
+              <li className="rounded-lg bg-black/20 p-2"><b>★ Poplu</b> — one above, same suit ({s.popluJhiplu})</li>
+              <li className="rounded-lg bg-black/20 p-2"><b>★ Jhiplu</b> — one below, same suit ({s.popluJhiplu})</li>
+              <li className="rounded-lg bg-black/20 p-2"><b>★ Alter</b> — same rank &amp; colour ({s.alter.join("/")})</li>
+              <li className="col-span-2 rounded-lg bg-black/20 p-2"><b className="text-zinc-300">★ Joker</b> — same rank, other colour (wild, no points). Tiplu + Poplu + Jhiplu = <b>Marriage</b> ({s.marriage}).</li>
             </ul>
           </section>
           <section className="space-y-2">

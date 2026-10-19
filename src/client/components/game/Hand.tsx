@@ -13,6 +13,8 @@ interface Props {
   onReorder(order: CardId[]): void;
   /** Called when a card is flicked upwards; return value ignored. */
   onSwipeUp?(id: CardId): void;
+  /** Identifies the current deal (table + round); the hand fans in when it changes. */
+  dealKey?: string;
 }
 
 interface Drag {
@@ -28,7 +30,7 @@ interface Drag {
  * The player's hand: cards overlap to fit the width (two rows on narrow screens).
  * Tap to select, drag sideways to rearrange, flick up to throw.
  */
-export function Hand({ cards, maal, selected, drawn, cardWidth, onToggle, onReorder, onSwipeUp }: Props) {
+export function Hand({ cards, maal, selected, drawn, cardWidth, onToggle, onReorder, onSwipeUp, dealKey }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(360);
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -45,18 +47,20 @@ export function Hand({ cards, maal, selected, drawn, cardWidth, onToggle, onReor
   }, []);
 
   const n = cards.length;
-  // Fan the hand in when a new round is dealt (a full fresh hand appears).
+  // Fan the hand in once per deal. Remembered per tab, so a refresh doesn't replay it.
   const [dealing, setDealing] = useState(false);
-  const prevCount = useRef(0);
   useEffect(() => {
-    if (prevCount.current === 0 && n >= 21) {
-      setDealing(true);
-      const t = setTimeout(() => setDealing(false), 900);
-      prevCount.current = n;
-      return () => clearTimeout(t);
-    }
-    prevCount.current = n;
-  }, [n]);
+    if (!dealKey) return;
+    let seen: string | null = null;
+    try {
+      seen = sessionStorage.getItem("mg.dealt");
+      sessionStorage.setItem("mg.dealt", dealKey);
+    } catch {}
+    if (seen === dealKey) return;
+    setDealing(true);
+    const t = setTimeout(() => setDealing(false), 900);
+    return () => clearTimeout(t);
+  }, [dealKey]);
   const layout = useMemo(() => {
     const oneRowStep = n > 1 ? Math.min(cw + 4, (width - cw) / (n - 1)) : 0;
     const rows = oneRowStep < cw * 0.42 && n > 12 ? 2 : 1;

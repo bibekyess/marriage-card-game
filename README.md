@@ -34,6 +34,14 @@ npm run typecheck
 
 Set `DATABASE_URL=postgres://…` to use Postgres in development. `TEST_DATABASE_URL=… npm test` also runs the Postgres store test.
 
+| Variable | Used by | Meaning |
+|---|---|---|
+| `PORT` | server | HTTP + socket port (default 3000) |
+| `DATABASE_URL` | server | Postgres connection; without it, tables are kept in memory |
+| `TRUST_PROXY` | server | `1` behind a reverse proxy: use the proxy-added `X-Forwarded-For` hop for rate limits |
+| `BOT_DELAY_SCALE` | server | Multiplies bot "thinking" delays; tests use `0.05`. Leave unset in production |
+| `API_URL` | Vite dev server | Where `npm run dev:client` proxies the socket/API (default `http://localhost:3000`) |
+
 ## How it's built
 
 | Part | Where |
