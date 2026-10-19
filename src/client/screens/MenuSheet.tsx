@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { BarChart3, BookOpen, Bot, Flag, LogOut, RotateCcw, Share2, Vibrate, Volume2 } from "lucide-react";
 import { toast } from "sonner";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { navigate } from "@/lib/router";
@@ -37,6 +37,7 @@ export function MenuSheet({ view: v, open, onOpenChange, onScores }: { view: Tab
         <SheetContent side="left" className="w-[300px] overflow-y-auto">
           <SheetHeader>
             <SheetTitle>Table {v.code}</SheetTitle>
+            <SheetDescription>{v.seats.length} players · {v.settings.pointRate} {v.settings.currency}/pt</SheetDescription>
           </SheetHeader>
           <nav className="mt-4 space-y-0.5">
             <Item icon={BarChart3} label="Scoreboard & settle up" onClick={() => (close(), onScores())} />

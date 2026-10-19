@@ -295,3 +295,52 @@ describe("review fixes", () => {
     expect(table.s.reveal!.winnerId).toBe(host);
   });
 });
+
+describe("re-review fixes", () => {
+  it("a lone host leaving doesn't orphan the table", () => {
+    const { table, seat } = Table.create("ORPH", "Host", {}, 1);
+    table.start(seat.id);
+    table.leave(seat.id);
+    const late = table.join("Late");
+    expect(table.s.hostId).toBe(late.id);
+  });
+
+  it("coming back with your token keeps a seat you 'left'", () => {
+    const { table, seat } = Table.create("BACK", "Host", {}, 0);
+    const g = table.join("Guest");
+    table.start(seat.id);
+    table.leave(g.id);
+    expect(table.s.seats[1].left).toBe(true);
+    table.reclaim(g.id);
+    expect(table.s.seats[1].left).toBe(false);
+    expect(table.s.seats[1].autoplay).toBe(false);
+  });
+
+  it("start() changes nothing when there aren't enough players", () => {
+    const { table, seat } = Table.create("FEW", "Host", {}, 0);
+    expect(() => table.start(seat.id)).toThrow(/at least 2/);
+    expect(table.s.status).toBe("lobby");
+  });
+
+  it("declaring picks the throw worth the most, whatever the hand order", () => {
+    const maal = "4H0";
+    const base = ["5C0", "5C1", "5C2", "5D0", "5S0", "6C0", "7C0", "8C0", "9D0", "9S0", "9H1", "3H0", "7C1"];
+    const results = [base, [...base].reverse()].map((hand) => {
+      const { table, seat } = Table.create("BEST", "Host", { restrictPickup: false }, 0);
+      table.join("G");
+      table.start(seat.id);
+      const g = table.s.game!;
+      g.maal = maal;
+      g.seen[seat.id] = "pure";
+      g.shown[seat.id] = [["AD0", "2D0", "3D0"], ["7S0", "8S0", "9S2"], ["JH0", "QH0", "KH0"]];
+      g.hands[seat.id] = [...hand];
+      g.phase = "discard";
+      g.picked = null;
+      if (!table.view(seat.id).canDeclare) return null;
+      table.declare(seat.id);
+      return table.s.reveal!.players.find((p) => p.id === seat.id)!.rawMaal;
+    });
+    expect(results[0]).not.toBeNull();
+    expect(results[0]).toBe(results[1]);
+  });
+});

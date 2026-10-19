@@ -65,17 +65,17 @@ export function Hand({ cards, maal, selected, drawn, cardWidth, onToggle, onReor
   // Where the dragged card would land.
   const target = useMemo(() => {
     if (!drag?.moved) return -1;
-    const rect = ref.current?.getBoundingClientRect();
-    if (!rect) return -1;
-    const px = drag.x - rect.left - cw / 2;
-    const py = drag.y - rect.top;
-    const row = layout.rows === 2 && py > 12 + layout.rowGap ? 1 : 0;
+    // Use where the dragged card actually is (its centre), not where the finger is.
+    const from = slot(cards.indexOf(drag.id));
+    const px = from.x + drag.x - drag.startX;
+    const py = from.y + drag.y - drag.startY + ch / 2;
+    const row = layout.rows === 2 && py > 12 + ch / 2 + layout.rowGap / 2 ? 1 : 0;
     const inRow = row === 0 ? Math.min(n, layout.perRow) : n - layout.perRow;
     const total = cw + (inRow - 1) * layout.step;
     const left = (width - total) / 2;
     const col = Math.max(0, Math.min(inRow - 1, Math.round((px - left) / (layout.step || 1))));
     return Math.min(n - 1, row * layout.perRow + col);
-  }, [drag, layout, n, cw, width]);
+  }, [drag, layout, n, cw, ch, width, cards]);
 
   const order = useMemo(() => {
     if (!drag?.moved || target < 0) return cards;
@@ -103,8 +103,9 @@ export function Hand({ cards, maal, selected, drawn, cardWidth, onToggle, onReor
     const d = drag;
     setDrag(null);
     if (!d.moved) return onToggle(d.id);
-    const dy = e.clientY - d.startY;
-    if (onSwipeUp && dy < -ch * 0.8 && Math.abs(e.clientX - d.startX) < cw * 2.5) return onSwipeUp(d.id);
+    // Throw only when the card is flicked clearly out of the hand, upwards.
+    const top = ref.current?.getBoundingClientRect().top ?? 0;
+    if (onSwipeUp && e.clientY < top - ch * 0.25 && Math.abs(e.clientX - d.startX) < cw * 3) return onSwipeUp(d.id);
     if (order.join() !== cards.join()) onReorder(order);
   };
 

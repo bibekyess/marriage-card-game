@@ -257,9 +257,10 @@ describe("robustness", () => {
     expect(srv.tables.has(made.data.code)).toBe(true); // connected: kept
     c.socket.disconnect();
     for (let i = 0; i < 50 && t.hasConnectedHumans(); i++) await wait(20);
-    t.s.updatedAt = Date.now() - 7 * 3600_000;
-    srv.sweep(Date.now());
-    expect(srv.tables.has(made.data.code)).toBe(false);
+    srv.sweep(Date.now() + 60_000);
+    expect(srv.tables.has(made.data.code)).toBe(true); // empty lobby, but only briefly
+    srv.sweep(Date.now() + 16 * 60_000);
+    expect(srv.tables.has(made.data.code)).toBe(false); // empty for 15+ minutes: gone
   });
 });
 
@@ -273,9 +274,11 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)("postgres store", () => {
     const c = client(srv1.port);
     const made = await c.call("create", { name: "Pg" });
     await srv1.close();
-    const rows = await store.loadActive();
+    // close() ends the server's pool, so read back with a fresh store.
+    const reader = new PgStore(process.env.TEST_DATABASE_URL!);
+    const rows = await reader.loadActive();
     expect(rows.some((s) => s.code === made.data.code)).toBe(true);
-    await store.remove(made.data.code);
-    await store.pool.end();
+    await reader.remove(made.data.code);
+    await reader.close();
   });
 });

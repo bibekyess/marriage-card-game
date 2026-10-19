@@ -252,6 +252,34 @@ export function findFinish(
   return null;
 }
 
+/** Every distinct winning throw (one per card face), sharing one search. */
+export function allFinishes(hand: CardId[], maal: CardId | null, opts: { forbidden?: CardId | null } = {}): Finish[] {
+  if (hasDuplicates(hand)) return [];
+  const keyOf = (c: CardId) => (isWild(c, maal) ? "W" : faceKey(c));
+  const p = partitioner((g) => isMeld(g, maal), keyOf);
+  const out: Finish[] = [];
+  const tried = new Set<string>();
+  for (const d of hand) {
+    if (d === opts.forbidden || tried.has(faceKey(d))) continue;
+    tried.add(faceKey(d));
+    const groups = p.partition(hand.filter((x) => x !== d));
+    if (groups) out.push({ discard: d, groups });
+  }
+  return out;
+}
+
+export function allDubleeFinishes(hand: CardId[], opts: { forbidden?: CardId | null } = {}): Finish[] {
+  const out: Finish[] = [];
+  const tried = new Set<string>();
+  for (const d of hand) {
+    if (d === opts.forbidden || tried.has(faceKey(d))) continue;
+    tried.add(faceKey(d));
+    const pairs = findDublees(hand.filter((x) => x !== d));
+    if (pairs.length) out.push({ discard: d, groups: [pairs[0]] });
+  }
+  return out;
+}
+
 /** A dublee player wins by holding one more dublee (8 in total). */
 export function findDubleeFinish(
   hand: CardId[],

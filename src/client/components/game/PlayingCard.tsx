@@ -20,12 +20,6 @@ function CourtEmblem({ rank, color }: { rank: number; color: string }) {
   const gold = "url(#mg-gold)";
   return (
     <svg viewBox="0 0 40 40" className="h-[80%] w-[80%]" aria-hidden>
-      <defs>
-        <linearGradient id="mg-gold" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#ffd77a" />
-          <stop offset="1" stopColor="#c98a12" />
-        </linearGradient>
-      </defs>
       {rank === 13 && (
         <>
           <path d="M6 30 L4 12 L13 20 L20 7 L27 20 L36 12 L34 30 Z" fill={gold} stroke="#8a5a00" strokeWidth="1" strokeLinejoin="round" />

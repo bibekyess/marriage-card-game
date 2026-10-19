@@ -1,10 +1,10 @@
 import type { TableView } from "../../shared/protocol";
 import { formatMoney } from "../../shared/settings";
-import { settlement, signed, totals } from "./format";
+import { nameOf, settlement, signed, totals } from "./format";
 
 /** Plain-text summary for messaging apps. */
 export function scoreText(v: TableView) {
-  const name = (id: string) => v.seats.find((s) => s.id === id)?.name ?? "Player";
+  const name = (id: string) => nameOf(v, id);
   const t = totals(v);
   const { net, transfers } = settlement(v);
   const lines = [
@@ -35,7 +35,7 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 /** A shareable scorecard image (PNG). */
 export async function scoreImage(v: TableView): Promise<Blob> {
   await document.fonts?.ready;
-  const name = (id: string) => v.seats.find((s) => s.id === id)?.name ?? "Player";
+  const name = (id: string) => nameOf(v, id);
   const t = totals(v);
   const { net, transfers } = settlement(v);
   const ids = Object.keys(t).sort((a, b) => t[b] - t[a]);
@@ -46,6 +46,13 @@ export async function scoreImage(v: TableView): Promise<Blob> {
   c.height = H;
   const ctx = c.getContext("2d")!;
   const font = (w: number, s: number) => `${w} ${s}px "Plus Jakarta Sans", system-ui, sans-serif`;
+  /** Shorten text with an ellipsis so it fits in `max` pixels (in the current font). */
+  const fit = (text: string, max: number) => {
+    if (ctx.measureText(text).width <= max) return text;
+    let t = Array.from(text);
+    while (t.length > 1 && ctx.measureText(t.join("") + "…").width > max) t = t.slice(0, -1);
+    return t.join("") + "…";
+  };
 
   const bg = ctx.createLinearGradient(0, 0, 0, H);
   bg.addColorStop(0, "#0d3b2b");
@@ -74,7 +81,7 @@ export async function scoreImage(v: TableView): Promise<Blob> {
     ctx.fillText(i === 0 ? "👑" : `${i + 1}`, 92, y + 58);
     ctx.fillStyle = "#eef3ef";
     ctx.font = font(700, 38);
-    ctx.fillText(name(id), 160, y + 60);
+    ctx.fillText(fit(name(id), 480), 160, y + 60);
     ctx.textAlign = "right";
     const m = net[id] ?? 0;
     ctx.fillStyle = m > 0 ? "#34d399" : m < 0 ? "#f87171" : "#eef3ef";
@@ -96,7 +103,7 @@ export async function scoreImage(v: TableView): Promise<Blob> {
     for (const tr of transfers) {
       ctx.fillStyle = "#eef3ef";
       ctx.font = font(600, 34);
-      ctx.fillText(`${name(tr.from)}  →  ${name(tr.to)}`, 80, y + 40);
+      ctx.fillText(`${fit(name(tr.from), 270)}  →  ${fit(name(tr.to), 270)}`, 80, y + 40);
       ctx.textAlign = "right";
       ctx.font = font(800, 34);
       ctx.fillStyle = "#f5b83d";

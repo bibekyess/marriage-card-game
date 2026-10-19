@@ -51,12 +51,18 @@ export async function startServer(opts: ServerOptions) {
   // ---------- limits ----------
 
   const MAX_TABLES = 5000;
-  const MAX_CREATED_PER_SOCKET = 5;
-  const CREATE_GAP_MS = 3000;
-  const JOIN_GAP_MS = 1000;
+  const CREATES_PER_IP = 20; // per CREATE_WINDOW_MS
+  const CREATE_WINDOW_MS = 10 * 60_000;
+  const CREATE_GAP_MS = 1000;
+  const JOIN_GAP_MS = 300;
   const SWEEP_MS = 5 * 60_000;
-  const IDLE_LOBBY_MS = 6 * 3600_000;
-  const IDLE_OTHER_MS = 24 * 3600_000;
+  /** How long a table may sit with nobody (human) connected before it is removed. */
+  const EMPTY_LOBBY_MS = 15 * 60_000;
+  const EMPTY_MATCH_END_MS = 2 * 3600_000;
+  const EMPTY_OTHER_MS = 24 * 3600_000;
+  /** Bots and timers pause once a table has had no humans for this long. */
+  const PAUSE_EMPTY_MS = 2 * 60_000;
+  const createsByIp = new Map<string, number[]>();
   const RETRY_MS = 5000;
   const MAX_FAILURES = 3;
   const SAVE_LOG_GAP_MS = 30_000;
@@ -134,6 +140,8 @@ export async function startServer(opts: ServerOptions) {
     clearTimeout(timers.get(code));
     timers.delete(code);
     if (closed || gaveUp.has(code)) return;
+    // Nobody's here: don't let bots play on (and keep the table alive) forever.
+    if (!t.hasConnectedHumans() && Date.now() - (t.emptySince ?? Date.now()) > PAUSE_EMPTY_MS) return;
     let step;
     try {
       step = t.nextStep();
@@ -178,6 +186,7 @@ export async function startServer(opts: ServerOptions) {
     failures.delete(code);
     gaveUp.delete(code);
     tables.delete(code);
+    io.in(code).socketsLeave(code);
     const slot = saving.get(code);
     if (!slot?.inflight) saving.delete(code); // otherwise runSave's tail drops it
     const p: Promise<unknown> = Promise.resolve(slot?.inflight)
@@ -192,8 +201,8 @@ export async function startServer(opts: ServerOptions) {
     for (const [code, t] of [...tables]) {
       try {
         if (t.maybeTransferHost(now)) changed(t);
-        const limit = t.s.status === "lobby" || t.s.status === "matchEnd" ? IDLE_LOBBY_MS : IDLE_OTHER_MS;
-        if (!t.hasConnectedHumans() && now - t.s.updatedAt > limit) removeTable(code);
+        const limit = t.s.status === "lobby" ? EMPTY_LOBBY_MS : t.s.status === "matchEnd" ? EMPTY_MATCH_END_MS : EMPTY_OTHER_MS;
+        if (!t.hasConnectedHumans() && now - (t.emptySince ?? t.s.updatedAt) > limit) removeTable(code);
       } catch (e) {
         console.error("sweep failed", code, e);
       }
@@ -264,7 +273,9 @@ export async function startServer(opts: ServerOptions) {
   type Handler = (t: Table, playerId: string, p: Record<string, any>) => unknown;
 
   io.on("connection", (socket) => {
-    socket.data.created = 0;
+    // Behind a reverse proxy set TRUST_PROXY=1 so the client's real address is used.
+    const fwd = socket.handshake.headers["x-forwarded-for"];
+    const ip = (process.env.TRUST_PROXY && typeof fwd === "string" && fwd.split(",")[0].trim()) || socket.handshake.address || "?";
     socket.data.lastCreate = 0;
     socket.data.lastJoin = 0;
 
@@ -298,14 +309,16 @@ export async function startServer(opts: ServerOptions) {
     on("create", (p, reply) => {
       const now = Date.now();
       if (now - socket.data.lastCreate < CREATE_GAP_MS) bad("You're doing that too fast. Wait a moment.");
-      if (socket.data.created >= MAX_CREATED_PER_SOCKET) bad("You've opened too many tables. Reload the page to continue.");
+      const recent = (createsByIp.get(ip) ?? []).filter((x) => now - x < CREATE_WINDOW_MS);
+      if (recent.length >= CREATES_PER_IP) bad("You've opened a lot of tables — try again in a few minutes.");
       if (tables.size >= MAX_TABLES) bad("The server is full, try again later");
       const name = optStr(p.name, "name");
       if (p.settings !== undefined && p.settings !== null && !isObj(p.settings)) bad("Invalid settings.");
       const bots = Math.max(0, Math.min(4, Math.trunc(num(p.bots)) || 0));
       const code = newCode();
       socket.data.lastCreate = now;
-      socket.data.created++;
+      recent.push(now);
+      createsByIp.set(ip, recent);
       const { table, seat } = Table.create(code, name ?? "", (p.settings as any) ?? {}, bots);
       if (bots) table.start(seat.id);
       tables.set(code, table);
@@ -325,6 +338,7 @@ export async function startServer(opts: ServerOptions) {
       if (!t) return bad(`No table with code ${code || "—"}. Check the code and try again.`);
       const known = token ? t.byToken(token) : null;
       if (known) {
+        t.reclaim(known);
         attach(socket, t, known);
         reply({ ok: true, data: { code, playerId: known, token } });
         return changed(t);
@@ -343,6 +357,7 @@ export async function startServer(opts: ServerOptions) {
       if (!t) return bad("No table with that code — it may have closed.");
       const id = t.byToken(token);
       if (!id) return bad("Your seat at this table is no longer valid.");
+      t.reclaim(id);
       attach(socket, t, id);
       reply({ ok: true, data: { code: t.s.code, playerId: id, token } });
       changed(t);

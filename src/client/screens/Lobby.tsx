@@ -19,8 +19,8 @@ export async function shareInvite(code: string) {
       await navigator.share({ title: "Marriage card table", text, url });
       return;
     }
-  } catch {
-    return; // user cancelled
+  } catch (e) {
+    if ((e as Error)?.name === "AbortError") return; // user cancelled; anything else falls back to copying
   }
   try {
     await navigator.clipboard.writeText(`${text}: ${url}`);
@@ -63,7 +63,7 @@ export function Lobby({ view: v }: { view: TableView }) {
               navigate("/");
             }}
           >
-            <LogOut /> {host ? "Close" : "Leave"}
+            <LogOut /> Leave
           </Button>
           <Badge variant="muted">{v.rounds.length ? `${v.rounds.length} rounds played` : "Waiting for players"}</Badge>
         </header>

@@ -73,7 +73,8 @@ export function formatMoney(amount: number, code: string): string {
 }
 
 const num = (v: unknown, d: number, min = 0, max = 1e6) => {
-  const n = Number(v);
+  // Only coerce primitives: Number() on a crafted object can throw.
+  const n = typeof v === "number" || typeof v === "string" ? Number(v) : NaN;
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : d;
 };
 const int = (v: unknown, d: number, min = 0, max = 1000) => Math.round(num(v, d, min, max));
@@ -100,7 +101,7 @@ export function sanitizeSettings(raw: Partial<Settings> | undefined, base: Setti
     dublees: typeof r.dublees === "boolean" ? r.dublees : base.dublees,
     dubleeMinPlayers: int(r.dubleeMinPlayers, base.dubleeMinPlayers, 2, 5),
     restrictPickup: typeof r.restrictPickup === "boolean" ? r.restrictPickup : base.restrictPickup,
-    turnTimer: [0, 30, 45, 60, 90].includes(Number(r.turnTimer)) ? Number(r.turnTimer) : base.turnTimer,
+    turnTimer: [0, 30, 45, 60, 90].includes(num(r.turnTimer, -1, -1)) ? num(r.turnTimer, 0) : base.turnTimer,
     botSpeed: (["relaxed", "normal", "fast"] as const).includes(r.botSpeed as Settings["botSpeed"])
       ? (r.botSpeed as Settings["botSpeed"])
       : base.botSpeed,

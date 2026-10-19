@@ -1,9 +1,18 @@
 import { randomBytes } from "node:crypto";
 import { BotView, choosePlay, chooseDiscard, chooseDraw } from "../shared/bot";
 import { cardLabel, CardId, faceKey, fullDeck, HAND_SIZE, isCardId, shuffle } from "../shared/cards";
-import { completesPure, findDubleeFinish, findDubleeShow, findFinish, findShow, Finish } from "../shared/melds";
+import {
+  allDubleeFinishes,
+  allFinishes,
+  completesPure,
+  findDubleeFinish,
+  findDubleeShow,
+  findFinish,
+  findShow,
+  Finish,
+} from "../shared/melds";
+import { maalPoints, scoreRound } from "../shared/scoring";
 import { LogEntry, RoundReveal, RoundRow, Route, TableStatus, TableView } from "../shared/protocol";
-import { scoreRound } from "../shared/scoring";
 import { dubleesAllowed, MAX_PLAYERS, MIN_PLAYERS, sanitizeSettings, Settings } from "../shared/settings";
 
 export class GameError extends Error {}
@@ -54,6 +63,8 @@ export interface TableState {
   rounds: RoundRow[];
   reveal: RoundReveal | null;
   log: LogEntry[];
+  /** Names of everyone who has sat here this match (for scoreboards after people leave). */
+  names?: Record<string, string>;
 }
 
 export const BOT_NAMES = ["Anisha", "Rohan", "Maya", "Sujan", "Kabir", "Pema"];
@@ -70,11 +81,21 @@ export const cleanName = (n: unknown) =>
     .join("")
     .trim() || "Player";
 
+/** Any three identical cards held (they score as a tunnel). */
+function tunnelsIn(hand: CardId[]): CardId[][] {
+  const by = new Map<string, CardId[]>();
+  for (const c of hand) by.set(faceKey(c), [...(by.get(faceKey(c)) || []), c]);
+  return [...by.values()].filter((x) => x.length >= 3).map((x) => x.slice(0, 3));
+}
+
 export type NextStep = { kind: "bot" | "timeout"; at: number } | null;
 
 export class Table {
   connected = new Set<string>();
   offlineSince = new Map<string, number>();
+  /** When the last person disconnected (null while someone is here). */
+  emptySince: number | null = Date.now();
+  private finishCache: { key: string; result: Finish | null } | null = null;
 
   constructor(public s: TableState) {}
 
@@ -161,7 +182,28 @@ export class Table {
       this.s.spectators.push({ id, name: nm, token });
       this.log(`${nm} is watching${this.s.seats.length >= MAX_PLAYERS ? " (table is full)" : " and will join next round"}.`);
     }
+    // A table whose host has gone (left with nobody to hand over to) gets a new host.
+    if (!this.hostPresent()) {
+      this.s.hostId = id;
+      this.log(`${nm} is now the host.`);
+    }
     return { id, token };
+  }
+
+  private hostPresent() {
+    const h = this.s.seats.find((x) => x.id === this.s.hostId);
+    return (h && !h.left) || this.s.spectators.some((x) => x.id === this.s.hostId);
+  }
+
+  /** Someone came back with their token: undo "left" so they keep their seat. */
+  reclaim(id: string) {
+    const seat = this.seat(id);
+    if (seat?.left) {
+      seat.left = false;
+      seat.autoplay = false;
+      this.log(`${seat.name} is back.`);
+    }
+    if (!this.hostPresent() && (seat || this.s.spectators.some((x) => x.id === id))) this.s.hostId = id;
   }
 
   addBot(by: string) {
@@ -207,7 +249,7 @@ export class Table {
 
   /** Give the host role to another person, preferring someone online. */
   private handOverHost(from: string) {
-    const humans = this.s.seats.filter((x) => !x.isBot && x.id !== from && !x.left);
+    const humans = [...this.s.seats.filter((x) => !x.isBot && x.id !== from && !x.left), ...this.s.spectators];
     const next = humans.find((x) => this.connected.has(x.id)) ?? humans[0];
     if (!next) return false;
     this.s.hostId = next.id;
@@ -256,6 +298,7 @@ export class Table {
       this.connected.delete(id);
       this.offlineSince.set(id, Date.now());
     }
+    this.emptySince = this.hasConnectedHumans() ? null : (this.emptySince ?? Date.now());
   }
 
   // ---------- round flow ----------
@@ -263,6 +306,9 @@ export class Table {
   start(by: string) {
     this.requireHost(by);
     if (this.s.status === "playing") fail("A round is already being played.");
+    const staying = this.s.seats.filter((x) => !x.left).length;
+    if (Math.min(MAX_PLAYERS, staying + this.s.spectators.length) < MIN_PLAYERS)
+      fail("You need at least 2 players. Add a bot or invite someone.");
     if (this.s.status === "matchEnd") this.newMatch(by);
     this.s.seats = this.s.seats.filter((x) => !x.left);
     // Seat anyone who was waiting, if there's room.
@@ -270,7 +316,6 @@ export class Table {
       const sp = this.s.spectators.shift()!;
       this.s.seats.push({ id: sp.id, name: sp.name, avatar: this.nextAvatar(), isBot: false, token: sp.token, autoplay: false });
     }
-    if (this.s.seats.length < MIN_PLAYERS) fail("You need at least 2 players. Add a bot or invite someone.");
     this.deal();
   }
 
@@ -278,6 +323,7 @@ export class Table {
     this.requireHost(by);
     this.s.rounds = [];
     this.s.round = 0;
+    this.s.names = {};
     this.s.reveal = null;
     this.s.status = "lobby";
     this.log("A new match is starting.");
@@ -393,7 +439,14 @@ export class Table {
       if (!groups) fail("You need 7 dublees (pairs of identical cards) to show.");
     } else {
       groups = findShow(hand, sel);
-      if (!groups) fail(sel.length >= 9 ? "Those cards don't make 3 pure sets." : "You don't have 3 pure sequences or tunnels yet.");
+      if (!groups)
+        fail(
+          sel.length === 9
+            ? "Those cards don't make 3 pure sets."
+            : sel.length
+              ? "Select exactly 9 cards (your 3 sets), or none and the app will find them."
+              : "You don't have 3 pure sequences or tunnels yet.",
+        );
     }
     const used = new Set(groups!.flat());
     g.hands[id] = hand.filter((c) => !used.has(c));
@@ -408,7 +461,11 @@ export class Table {
     const hand = g.hands[id];
     const prefer = preferDiscard && hand.includes(preferDiscard) && preferDiscard !== g.picked ? preferDiscard : undefined;
     const opts = { preferDiscard: prefer, forbidden: g.picked };
-    const f = route === "dublee" ? findDubleeFinish(hand, opts) : findFinish(hand, g.maal, opts);
+    const f = prefer
+      ? route === "dublee"
+        ? findDubleeFinish(hand, opts)
+        : findFinish(hand, g.maal, opts)
+      : this.bestFinish(id);
     if (!f) {
       if (prefer) return this.declare(id); // try any other card before giving up
       fail(route === "dublee" ? "You need one more dublee to finish." : "Your cards don't make complete sets yet.");
@@ -420,17 +477,12 @@ export class Table {
     const g = this.g;
     g.hands[winnerId] = g.hands[winnerId].filter((c) => c !== f.discard);
     g.discard.push(f.discard);
-    const tunnelsInHand = (hand: CardId[]) => {
-      const by = new Map<string, CardId[]>();
-      for (const c of hand) by.set(faceKey(c), [...(by.get(faceKey(c)) || []), c]);
-      return [...by.values()].filter((x) => x.length >= 3).map((x) => x.slice(0, 3));
-    };
     // Tunnels score whether shown or still held at the end, for everyone alike
     // (so the winner's bonus never depends on how the cards happen to be arranged).
     const inputs = this.s.seats.map((seat) => {
       const hand = g.hands[seat.id];
       const shown = g.shown[seat.id] || [];
-      return { id: seat.id, seen: !!g.seen[seat.id], cards: [...hand, ...shown.flat()], shown: [...shown, ...tunnelsInHand(hand)] };
+      return { id: seat.id, seen: !!g.seen[seat.id], cards: [...hand, ...shown.flat()], shown: [...shown, ...tunnelsIn(hand)] };
     });
     const rows = scoreRound(inputs, winnerId, g.maal, this.s.settings, route === "dublee");
     const points: Record<string, number> = {};
@@ -549,7 +601,7 @@ export class Table {
       if (g.phase === "draw") this.draw(id, "stock");
       if (this.s.status !== "playing") return; // the round was called off
       const plan = g.seen[id] ? choosePlay(this.botView(id)) : null;
-      if (plan?.kind === "declare") return this.declare(id, plan.finish.discard);
+      if (plan?.kind === "declare") return this.declare(id); // best throw for points
       this.discard(id, chooseDiscard(this.botView(id)));
       this.log(`${seat.name} ran out of time — auto-played.`);
       return;
@@ -569,15 +621,51 @@ export class Table {
       plan = choosePlay(this.botView(id));
       if (plan.kind === "show") plan = { kind: "discard", card: chooseDiscard(this.botView(id)) };
     }
-    if (plan.kind === "declare") return this.declare(id, plan.finish.discard);
+    if (plan.kind === "declare") return this.declare(id);
     this.discard(id, plan.kind === "discard" ? plan.card : chooseDiscard(this.botView(id)));
   }
 
   // ---------- views ----------
 
+  /**
+   * Of all the cards that could be thrown to finish, the one that keeps the most maal points
+   * (tunnels included), so the result never depends on how the hand happens to be ordered.
+   */
+  private bestFinish(id: string): Finish | null {
+    const g = this.g;
+    const hand = g.hands[id];
+    const opts = { forbidden: g.picked };
+    const all = g.seen[id] === "dublee" ? allDubleeFinishes(hand, opts) : allFinishes(hand, g.maal, opts);
+    let best: Finish | null = null;
+    let bestPts = -Infinity;
+    const shown = g.shown[id] || [];
+    for (const f of all) {
+      const rest = hand.filter((c) => c !== f.discard);
+      // Scored exactly as finishRound will score it.
+      const pts = maalPoints([...rest, ...shown.flat()], [...shown, ...tunnelsIn(rest)], g.maal, this.s.settings).points;
+      if (pts > bestPts) {
+        bestPts = pts;
+        best = f;
+      }
+    }
+    return best;
+  }
+
+  /** Cached: can the player whose turn it is finish right now? */
+  private finishFor(id: string): Finish | null {
+    const g = this.s.game;
+    if (!g || g.phase !== "discard" || this.s.seats[g.turn]?.id !== id || !g.seen[id]) return null;
+    const key = `${id}|${g.hands[id].join()}|${g.picked}|${g.seen[id]}`;
+    if (this.finishCache?.key !== key) this.finishCache = { key, result: this.bestFinish(id) };
+    return this.finishCache.result;
+  }
+
   view(id: string): TableView {
     const s = this.s, g = s.game;
     const seen = !!g?.seen[id];
+    const names = (s.names ??= {});
+    for (const x of s.seats) names[x.id] = x.name;
+    const finish = this.finishFor(id);
     return {
       code: s.code,
       you: id,
@@ -613,6 +701,10 @@ export class Table {
       reveal: s.reveal,
       log: s.log.slice(-15),
       spectators: s.spectators.map((x) => ({ id: x.id, name: x.name })),
+      names,
+      serverNow: Date.now(),
+      canDeclare: !!finish,
+      finishDiscard: finish?.discard ?? null,
     };
   }
 

@@ -1,10 +1,11 @@
+import { useEffect, useState } from "react";
 import { ArrowRight, Copy, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar } from "@/components/game/Avatar";
-import { roundLabel, settlement, signed, totals } from "@/lib/format";
+import { nameOf, roundLabel, settlement, signed, totals } from "@/lib/format";
 import { scoreImage, scoreText } from "@/lib/shareImage";
 import { cn } from "@/lib/utils";
 import type { TableView } from "../../shared/protocol";
@@ -12,23 +13,29 @@ import { formatMoney } from "../../shared/settings";
 
 const tone = (n: number) => (n > 0 ? "text-emerald-400" : n < 0 ? "text-red-400" : "text-muted-foreground");
 
-async function shareScore(v: TableView) {
+function download(file: File) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(file);
+  a.download = file.name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  toast.success("Scorecard image saved");
+}
+
+/** Share the (already rendered) scorecard. Rendering first would use up the tap on iOS. */
+async function shareScore(v: TableView, file: File | null) {
   const text = scoreText(v);
+  if (!file) {
+    toast.message("Preparing the scorecard… tap again in a moment.");
+    return;
+  }
   try {
-    const blob = await scoreImage(v);
-    const file = new File([blob], `marriage-${v.code}.png`, { type: "image/png" });
-    if (navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], text });
-      return;
-    }
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = file.name;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-    toast.success("Scorecard image saved");
+    if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], text });
+    else download(file);
   } catch (e) {
-    if ((e as Error)?.name !== "AbortError") toast.error("Couldn't share the image.");
+    const name = (e as Error)?.name;
+    if (name === "AbortError") return;
+    download(file);
   }
 }
 
@@ -42,9 +49,22 @@ async function copyText(v: TableView) {
 }
 
 export function ScoreSheet({ view: v, open, onOpenChange }: { view: TableView; open: boolean; onOpenChange(o: boolean): void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const roundsPlayed = v.rounds.length;
+  useEffect(() => {
+    if (!open) return;
+    let live = true;
+    setFile(null);
+    scoreImage(v).then((blob) => live && setFile(new File([blob], `marriage-${v.code}.png`, { type: "image/png" })));
+    return () => {
+      live = false;
+    };
+    // Re-render only when the scores change, not on every table update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, roundsPlayed, v.code]);
   const t = totals(v);
   const ids = Object.keys(t);
-  const name = (id: string) => v.seats.find((s) => s.id === id)?.name ?? "Left";
+  const name = (id: string) => nameOf(v, id);
   const seat = (id: string) => v.seats.find((s) => s.id === id);
   const { net, transfers } = settlement(v);
   const cur = v.settings.currency;
@@ -84,7 +104,7 @@ export function ScoreSheet({ view: v, open, onOpenChange }: { view: TableView; o
                     <tr key={i} className="border-t border-white/[0.06]">
                       <td className="px-3 py-2.5 text-muted-foreground">
                         <span className={cn(v.status === "playing" && i === v.rounds.length && "font-bold text-gold")}>{i + 1}</span>
-                        {r && <span className="ml-1.5 text-xs">· {name(r.winnerId)} won</span>}
+                        {r && <span className="ml-1.5 text-xs">· {r.winnerId ? `${name(r.winnerId)} won` : "called off"}</span>}
                       </td>
                       {ids.map((id) => (
                         <td key={id} className={cn("px-3 py-2.5 text-right font-semibold tabular-nums", id === v.you && "bg-gold/[0.07]", r ? tone(r.points[id] ?? 0) : "text-white/25")}>
@@ -145,7 +165,7 @@ export function ScoreSheet({ view: v, open, onOpenChange }: { view: TableView; o
               )}
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Button variant="gold" onClick={() => shareScore(v)}>
+              <Button variant="gold" onClick={() => shareScore(v, file)}>
                 <Share2 /> Share scorecard
               </Button>
               <Button variant="outline" onClick={() => copyText(v)}>

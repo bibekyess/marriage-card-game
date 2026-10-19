@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { PlayingCard } from "@/components/game/PlayingCard";
 import { Avatar } from "@/components/game/Avatar";
 import { act } from "@/lib/store";
-import { signed, totals } from "@/lib/format";
+import { nameOf, signed, totals } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { TableView } from "../../shared/protocol";
 import { cardLabel } from "../../shared/cards";
@@ -35,7 +35,7 @@ function Cards({ groups, loose, maal }: { groups: string[][]; loose: string[]; m
 export function RoundResult({ view: v, open, onOpenChange, onScores }: { view: TableView; open: boolean; onOpenChange(o: boolean): void; onScores(): void }) {
   const r = v.reveal!;
   const host = v.hostId === v.you;
-  const name = (id: string) => v.seats.find((s) => s.id === id)?.name ?? "Player";
+  const name = (id: string) => nameOf(v, id);
   const seat = (id: string) => v.seats.find((s) => s.id === id);
   const winner = name(r.winnerId);
   const t = totals(v);

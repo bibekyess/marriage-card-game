@@ -1,5 +1,5 @@
 import { CardId, maalKind, MaalKind, sortBySuit } from "../../shared/cards";
-import { findDubleeFinish, findDublees, findFinish, findPureSets, isTunnel } from "../../shared/melds";
+import { completesPure, findDublees, findPureSets, isTunnel } from "../../shared/melds";
 import type { TableView } from "../../shared/protocol";
 import { dubleesAllowed } from "../../shared/settings";
 
@@ -10,11 +10,6 @@ export const MAAL_NAME: Record<MaalKind, string> = {
   jhiplu: "Jhiplu",
   alter: "Alter",
   joker: "Joker",
-};
-
-export const tagFor = (id: CardId, maal: CardId | null) => {
-  const k = maalKind(id, maal);
-  return k ? MAAL_TAG[k] : null;
 };
 
 export interface Hints {
@@ -28,6 +23,17 @@ export interface Hints {
   canShowDublee: boolean;
   canDeclare: boolean;
   finishDiscard: CardId | null;
+  /** Taking the top discard is allowed (pick-up rule). */
+  canPickDiscard: boolean;
+}
+
+// Finding sets is cheap but not free; only redo it when the hand itself changes.
+let setsCache: { key: string; pure: CardId[][]; dublees: CardId[][] } | null = null;
+function setsFor(hand: CardId[], seen: string | null) {
+  const key = hand.join() + "|" + seen;
+  if (setsCache?.key !== key)
+    setsCache = { key, pure: seen ? [] : findPureSets(hand, 3), dublees: seen === "pure" ? [] : findDublees(hand) };
+  return setsCache;
 }
 
 /** What the player can do right now, worked out with the same rules the server enforces. */
@@ -37,12 +43,10 @@ export function computeHints(v: TableView): Hints {
   const myTurn = v.status === "playing" && v.turn === myIndex;
   const seen = me?.seen ?? null;
   const dubleeOk = dubleesAllowed(v.settings, v.seats.length);
-  const pureSets = seen ? [] : findPureSets(v.hand, 3);
-  const dublees = seen === "pure" ? [] : findDublees(v.hand);
+  const { pure: pureSets, dublees } = setsFor(v.hand, seen);
   const discardPhase = myTurn && v.phase === "discard";
-  let finish = null;
-  if (discardPhase && seen === "pure") finish = findFinish(v.hand, v.maal, { forbidden: v.picked });
-  if (discardPhase && seen === "dublee") finish = findDubleeFinish(v.hand, { forbidden: v.picked });
+  const top = v.discardTop;
+  const canPickDiscard = !!top && (!!seen || !v.settings.restrictPickup || completesPure(v.hand, top, dubleeOk));
   return {
     myIndex,
     myTurn,
@@ -52,8 +56,9 @@ export function computeHints(v: TableView): Hints {
     dubleeOk,
     canShowPure: discardPhase && !seen && pureSets.length >= 3,
     canShowDublee: discardPhase && !seen && dubleeOk && dublees.length >= 7,
-    canDeclare: !!finish,
-    finishDiscard: finish?.discard ?? null,
+    canDeclare: discardPhase && v.canDeclare,
+    finishDiscard: v.finishDiscard,
+    canPickDiscard,
   };
 }
 

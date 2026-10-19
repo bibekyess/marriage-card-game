@@ -75,6 +75,13 @@ export interface TableView {
   reveal: RoundReveal | null;
   log: LogEntry[];
   spectators: { id: string; name: string }[];
+  /** Everyone who has sat at this table this match, including people who left. */
+  names: Record<string, string>;
+  /** Server clock when this view was made, so timers don't depend on the phone's clock. */
+  serverNow: number;
+  /** Your turn, after drawing: can you finish now, and with which throw? (server-computed) */
+  canDeclare: boolean;
+  finishDiscard: CardId | null;
 }
 
 export interface Ack<T = unknown> {

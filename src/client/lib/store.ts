@@ -11,8 +11,8 @@ export interface GameState {
   connected: boolean;
   session: Session | null;
   view: TableView | null;
-  /** Set when we tried to resume a table that no longer exists. */
-  lost: string | null;
+  /** Set when our seat at a table is gone (table closed, or we were removed). */
+  lost: { code: string; error: string } | null;
 }
 
 let state: GameState = { connected: false, session: null, view: null, lost: null };
@@ -37,7 +37,15 @@ socket.on("disconnect", () => set({ connected: false }));
 let latest: TableView | null = null;
 socket.on("state", (view: TableView) => {
   latest = view;
-  if (state.session && view.code === state.session.code && view.you === state.session.playerId) set({ view });
+  const s = state.session;
+  if (!s || view.code !== s.code || view.you !== s.playerId) return;
+  // Removed by the host, or left from another tab: our seat no longer exists.
+  if (!view.seats.some((x) => x.id === view.you) && !view.spectators.some((x) => x.id === view.you)) {
+    forgetSession(s.code);
+    set({ session: null, view: null, lost: { code: s.code, error: "You're no longer at this table." } });
+    return;
+  }
+  set({ view });
 });
 
 export function call<T = unknown>(event: string, payload?: unknown): Promise<Ack<T>> {
@@ -66,7 +74,7 @@ export async function resume(code: string): Promise<boolean> {
   }
   if (r.error && !r.error.startsWith("Couldn't reach")) {
     forgetSession(code);
-    set({ session: null, view: null, lost: r.error });
+    set({ session: null, view: null, lost: { code, error: r.error } });
   }
   return false;
 }
@@ -94,8 +102,8 @@ export async function leaveTable() {
 }
 
 /** Step away from the table (e.g. back to Home) but keep the seat to come back to. */
-export function detachTable() {
-  if (!state.session) return;
+export function detachTable(code: string) {
+  if (state.session?.code !== code) return;
   call("detach");
   set({ session: null, view: null });
 }

@@ -17,6 +17,7 @@ import { ScoreSheet } from "./ScoreSheet";
 import { MenuSheet } from "./MenuSheet";
 import { CardId, cardLabel, sortByRank, sortBySuit } from "../../shared/cards";
 import type { TableView } from "../../shared/protocol";
+import { MAX_PLAYERS } from "../../shared/settings";
 
 function useViewport() {
   const [vp, setVp] = useState({ w: window.innerWidth, h: window.innerHeight });
@@ -53,12 +54,14 @@ const SPOTS_PORTRAIT: Record<number, [number, number][]> = {
   2: [[16, 18], [84, 18]],
   3: [[15, 22], [50, 0], [85, 22]],
   4: [[14, 26], [32, 0], [68, 0], [86, 26]],
+  5: [[14, 40], [16, 8], [50, 0], [84, 8], [86, 40]],
 };
 const SPOTS: Record<number, [number, number][]> = {
   1: [[50, 0]],
   2: [[9, 26], [91, 26]],
   3: [[8, 30], [50, 0], [92, 30]],
   4: [[7, 34], [30, 0], [70, 0], [93, 34]],
+  5: [[7, 48], [22, 2], [50, 0], [78, 2], [93, 48]],
 };
 
 export function TableScreen({ view: v, connected }: { view: TableView; connected: boolean }) {
@@ -100,7 +103,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
       return n;
     });
 
-  const [sortMode, setSortMode] = useState<"suit" | "rank">("suit");
+  const [sortMode, setSortMode] = useState<"suit" | "rank">("rank"); // first tap sorts by suit
   const [menu, setMenu] = useState(false);
   const [scores, setScores] = useState(false);
   const [resultOpen, setResultOpen] = useState(true);
@@ -115,12 +118,15 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
     const seenCount = (x: TableView) => x.seats.filter((s) => s.seen).length;
     if (seenCount(v) > seenCount(p)) sfx.show();
     if (p.status === "playing" && v.status !== "playing" && v.reveal) {
-      v.reveal.winnerId === v.you ? sfx.win() : sfx.lose();
+      if (v.reveal.winnerId === v.you) sfx.win();
+      else if (v.reveal.winnerId) sfx.lose();
       setResultOpen(true);
     }
   }, [v, h.myTurn]);
 
-  const now = useNow(!!v.deadline && playing);
+  // Count down against the server's clock, not the phone's (which may be off).
+  const offset = useMemo(() => v.serverNow - Date.now(), [v.serverNow]);
+  const now = useNow(!!v.deadline && playing) + offset;
   const progress = v.deadline && v.settings.turnTimer ? Math.max(0, Math.min(1, (v.deadline - now) / (v.settings.turnTimer * 1000))) : null;
   const secondsLeft = v.deadline ? Math.max(0, Math.ceil((v.deadline - now) / 1000)) : null;
 
@@ -138,7 +144,8 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
 
   let hint = "";
   if (!playing) hint = v.status === "matchEnd" ? "Match over" : "Round over";
-  else if (!seated) hint = `You're watching — you'll be dealt in next round. ${turnName}'s turn.`;
+  else if (!seated)
+    hint = `You're watching${v.seats.length >= MAX_PLAYERS ? " — the table is full" : " — you'll be dealt in next round"}. ${turnName}'s turn.`;
   else if (canDraw) hint = h.seen || !v.settings.restrictPickup ? "Your turn — draw from the stock or the discard pile" : "Your turn — draw a card (discard only if it completes a pure set)";
   else if (discardPhase) hint = h.canDeclare ? "You can finish! Tap Declare" : h.canShowPure || h.canShowDublee ? "You can show and see the maal" : "Throw a card — tap one, then Discard (or flick it up)";
   else hint = `${turnName} is playing…`;
@@ -189,12 +196,18 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
         </Button>
         <button
           onClick={() => setScores(true)}
+          aria-label="Scoreboard"
           className="flex shrink-0 items-center gap-2 rounded-full border border-gold/40 bg-black/30 px-3 py-1.5 text-xs font-bold transition-colors hover:bg-black/50 sm:text-sm"
           data-testid="score-pill"
         >
           <BarChart3 className="h-4 w-4 text-gold" />
-          <span className="hidden min-[400px]:inline">{roundLabel(v)} ·</span> You{" "}
-          <span className={cn("tabular-nums", myTotal > 0 && "text-emerald-400", myTotal < 0 && "text-red-400")}>{signed(myTotal)}</span>
+          <span className={cn(seated && "hidden min-[400px]:inline")}>{roundLabel(v)}</span>
+          {seated && (
+            <>
+              <span className="hidden min-[400px]:inline">·</span> You{" "}
+              <span className={cn("tabular-nums", myTotal > 0 && "text-emerald-400", myTotal < 0 && "text-red-400")}>{signed(myTotal)}</span>
+            </>
+          )}
         </button>
         <div className="flex min-w-0 flex-1 justify-center">{wide && hintPill}</div>
         {!connected && (
@@ -241,6 +254,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
               maal={v.maal}
               maalHidden={v.maalHidden}
               canDraw={canDraw}
+              canPickDiscard={canDraw && h.canPickDiscard}
               onDraw={(from) => run("draw", { from })}
             />
           </div>
@@ -250,7 +264,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
       {!wide && <div className="flex justify-center px-3 pb-1">{hintPill}</div>}
 
       {/* My dock + hand */}
-      {seated && (
+      {seated && playing && (
         <div className="safe-pb relative z-20 shrink-0 px-2 pb-1 sm:px-8">
           <div className="mx-auto flex max-w-[1180px] flex-wrap items-center gap-2 pb-1.5">
             <div className={cn("flex items-center gap-1.5 rounded-full py-1 pl-1 pr-2.5 text-xs font-bold", h.myTurn ? "bg-gradient-to-b from-[#f7c45a] to-[#eba52a] text-[#2a1d00]" : "bg-black/40")}>
@@ -318,7 +332,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
               cardWidth={handCw}
               onToggle={toggle}
               onReorder={arrange}
-              onSwipeUp={discardPhase ? (c) => discard(c) : undefined}
+              onSwipeUp={discardPhase ? (c) => c !== v.picked && discard(c) : undefined}
             />
           </div>
         </div>
@@ -327,11 +341,24 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
       {v.reveal && !playing && (
         <RoundResult view={v} open={resultOpen} onOpenChange={setResultOpen} onScores={() => setScores(true)} />
       )}
-      {!playing && !resultOpen && (
-        <div className="absolute bottom-4 left-1/2 z-30 -translate-x-1/2">
-          <Button variant="gold" size="lg" onClick={() => setResultOpen(true)}>
-            <Trophy /> Round results
-          </Button>
+      {!playing && (!resultOpen || !v.reveal) && (
+        <div className="absolute bottom-6 left-1/2 z-30 flex -translate-x-1/2 gap-2">
+          {v.reveal && (
+            <Button variant="secondary" size="lg" onClick={() => setResultOpen(true)}>
+              <Trophy /> Round results
+            </Button>
+          )}
+          {v.status === "matchEnd" ? (
+            <Button variant="gold" size="lg" onClick={() => setScores(true)} data-testid="settle-btn">
+              <BarChart3 /> Settle up
+            </Button>
+          ) : (
+            v.hostId === v.you && (
+              <Button variant="gold" size="lg" onClick={() => run("start")}>
+                Deal next round
+              </Button>
+            )
+          )}
         </div>
       )}
       <ScoreSheet view={v} open={scores} onOpenChange={setScores} />

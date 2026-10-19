@@ -9,9 +9,9 @@ interface Props {
   maal: string | null;
   maalHidden: boolean;
   canDraw: boolean;
+  /** Taking the top discard is allowed right now (pick-up rule). */
+  canPickDiscard: boolean;
   onDraw(from: "stock" | "discard"): void;
-  /** Highlight the discard pile as a drop target while a card is being flicked. */
-  dropTarget?: boolean;
 }
 
 function Caption({ children, active }: { children: React.ReactNode; active?: boolean }) {
@@ -21,7 +21,8 @@ function Caption({ children, active }: { children: React.ReactNode; active?: boo
 }
 
 /** Stock, maal and discard pile in the middle of the felt. */
-export function Piles({ cw, stockCount, discardTop, discardUnder, maal, maalHidden, canDraw, onDraw, dropTarget }: Props) {
+export function Piles({ cw, stockCount, discardTop, discardUnder, maal, maalHidden, canDraw, canPickDiscard, onDraw }: Props) {
+  const canPick = canPickDiscard && !!discardTop;
   return (
     <div className="flex items-end justify-center gap-[clamp(14px,4vw,40px)]">
       <button
@@ -53,17 +54,14 @@ export function Piles({ cw, stockCount, discardTop, discardUnder, maal, maalHidd
 
       <button
         type="button"
-        className={cn("flex flex-col items-center outline-none", canDraw && discardTop ? "cursor-pointer" : "cursor-default")}
-        onClick={() => canDraw && discardTop && onDraw("discard")}
-        disabled={!canDraw || !discardTop}
-        aria-label={discardTop ? "Pick up the top discard" : "Discard pile is empty"}
+        className={cn("flex flex-col items-center outline-none", canPick ? "cursor-pointer" : "cursor-default")}
+        onClick={() => canPick && onDraw("discard")}
+        disabled={!canPick}
+        title={canDraw && discardTop && !canPick ? "You can pick this up only if it completes a pure set" : undefined}
+        aria-label={discardTop ? (canPick ? "Pick up the top discard" : "Top discard (can't pick up)") : "Discard pile is empty"}
         data-testid="discard"
       >
-        <div
-          className={cn(
-            "relative rounded-lg border-2 border-dashed border-transparent p-0.5 transition-colors",
-            dropTarget && "border-gold/80 bg-gold/10",
-          )}
+        <div className="relative rounded-lg border-2 border-dashed border-transparent p-0.5"
           style={{ minWidth: cw + 8, minHeight: cw * 1.42 + 8 }}
         >
           {discardUnder && <PlayingCard id={discardUnder} width={cw} maal={maal} className="absolute left-[-3px] top-[2px] rotate-[-6deg] opacity-80" />}
@@ -72,13 +70,13 @@ export function Piles({ cw, stockCount, discardTop, discardUnder, maal, maalHidd
               id={discardTop}
               width={cw}
               maal={maal}
-              className={cn("relative rotate-[3deg]", canDraw && "ring-2 ring-gold/70 hover:-translate-y-1")}
+              className={cn("relative rotate-[3deg] transition-transform", canPick && "ring-2 ring-gold/70 hover:-translate-y-1")}
             />
           ) : (
             <div className="rounded-lg border-2 border-dashed border-white/20" style={{ width: cw, height: cw * 1.42 }} />
           )}
         </div>
-        <Caption active={canDraw && !!discardTop}>Discard</Caption>
+        <Caption active={canPick}>Discard</Caption>
       </button>
     </div>
   );
