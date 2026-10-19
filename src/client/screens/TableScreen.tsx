@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownUp, BarChart3, Eye, Layers, Menu, Sparkles, Trophy, WifiOff } from "lucide-react";
+import { ArrowDownUp, ArrowUp, BarChart3, Eye, Layers, Menu, Sparkles, Trophy, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Hand } from "@/components/game/Hand";
 import { Piles } from "@/components/game/Piles";
 import { Seat } from "@/components/game/Seat";
 import { PlayingCard } from "@/components/game/PlayingCard";
+import { Avatar } from "@/components/game/Avatar";
 import { computeHints, groupedOrder } from "@/lib/hints";
 import { roundLabel, signed, totals } from "@/lib/format";
 import { act } from "@/lib/store";
@@ -14,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { RoundResult } from "./RoundResult";
 import { ScoreSheet } from "./ScoreSheet";
 import { MenuSheet } from "./MenuSheet";
-import { CardId, sortByRank, sortBySuit } from "../../shared/cards";
+import { CardId, cardLabel, sortByRank, sortBySuit } from "../../shared/cards";
 import type { TableView } from "../../shared/protocol";
 
 function useViewport() {
@@ -47,11 +48,17 @@ async function run(event: string, payload?: Record<string, unknown>) {
 }
 
 /** Opponent positions around the top of the oval, by number of opponents. */
+const SPOTS_PORTRAIT: Record<number, [number, number][]> = {
+  1: [[50, 0]],
+  2: [[16, 18], [84, 18]],
+  3: [[15, 22], [50, 0], [85, 22]],
+  4: [[14, 26], [32, 0], [68, 0], [86, 26]],
+};
 const SPOTS: Record<number, [number, number][]> = {
-  1: [[50, 9]],
-  2: [[14, 30], [86, 30]],
-  3: [[12, 36], [50, 8], [88, 36]],
-  4: [[10, 42], [30, 9], [70, 9], [90, 42]],
+  1: [[50, 0]],
+  2: [[9, 26], [91, 26]],
+  3: [[8, 30], [50, 0], [92, 30]],
+  4: [[7, 34], [30, 0], [70, 0], [93, 34]],
 };
 
 export function TableScreen({ view: v, connected }: { view: TableView; connected: boolean }) {
@@ -64,7 +71,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
 
   // Card sizes follow the screen.
   const handCw = Math.round(landscape ? Math.min(vp.h * 0.17, vp.w * 0.062, 84) : Math.min(vp.w * 0.125, 60));
-  const pileCw = Math.round(landscape ? Math.min(vp.h * 0.16, 76) : Math.min(vp.w * 0.15, 64));
+  const pileCw = Math.round(landscape ? Math.min(vp.h * 0.145, vp.w >= 1100 ? 104 : 76) : Math.min(vp.w * 0.15, 64));
 
   // Local card order (instant feedback); server keeps it so a refresh keeps your arrangement.
   const [order, setOrder] = useState<CardId[]>(v.hand);
@@ -142,8 +149,39 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
 
   const myTotal = seated ? totals(v)[v.you] ?? 0 : 0;
 
+  const wide = vp.w >= 700;
+  const seatSize = Math.round(landscape ? Math.min(Math.max(vp.h * 0.1, 34), vp.w >= 1100 ? 66 : 56) : Math.min(vp.w * 0.11, 48));
+  const hintPill = (
+    <div
+      className={cn(
+        "truncate rounded-full px-4 py-1.5 text-center text-xs font-semibold sm:text-sm",
+        h.myTurn ? "bg-gold/15 text-gold ring-1 ring-gold/40" : "bg-white/[0.06] text-white/75",
+      )}
+      data-testid="hint"
+    >
+      {hint}
+    </div>
+  );
+
+  const btn = vp.w < 520 ? "default" : "lg";
+  const primary = discardPhase ? (
+    h.canDeclare ? (
+      <Button size={btn} variant="gold" onClick={declare} data-testid="declare" className="animate-pulse-ring">
+        <Trophy /> Declare
+      </Button>
+    ) : !h.seen && (h.canShowPure || selected.size === 9) ? (
+      <Button size={btn} variant="gold" onClick={() => show("pure")} data-testid="show-pure">
+        <Sparkles /> {vp.w < 520 ? "Show" : "Show 3 pure"}
+      </Button>
+    ) : !h.seen && h.canShowDublee ? (
+      <Button size={btn} variant="gold" onClick={() => show("dublee")} data-testid="show-dublee">
+        <Sparkles /> {vp.w < 520 ? "Show" : "Show 7 dublees"}
+      </Button>
+    ) : null
+  ) : null;
+
   return (
-    <div className="flex h-[100dvh] flex-col overflow-hidden bg-[#06110d]">
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-[radial-gradient(120%_80%_at_50%_45%,#0b2219_0%,#06110d_70%)]">
       {/* Top bar */}
       <header className="flex h-12 shrink-0 items-center gap-2 px-2 sm:px-4">
         <Button size="icon" variant="ghost" onClick={() => setMenu(true)} aria-label="Menu">
@@ -151,13 +189,14 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
         </Button>
         <button
           onClick={() => setScores(true)}
-          className="flex items-center gap-2 rounded-full border border-gold/40 bg-black/30 px-3 py-1.5 text-xs font-bold sm:text-sm"
+          className="flex shrink-0 items-center gap-2 rounded-full border border-gold/40 bg-black/30 px-3 py-1.5 text-xs font-bold transition-colors hover:bg-black/50 sm:text-sm"
           data-testid="score-pill"
         >
           <BarChart3 className="h-4 w-4 text-gold" />
-          {roundLabel(v)} · You <span className={cn(myTotal > 0 && "text-emerald-400", myTotal < 0 && "text-red-400")}>{signed(myTotal)}</span>
+          <span className="hidden min-[400px]:inline">{roundLabel(v)} ·</span> You{" "}
+          <span className={cn("tabular-nums", myTotal > 0 && "text-emerald-400", myTotal < 0 && "text-red-400")}>{signed(myTotal)}</span>
         </button>
-        <div className="flex-1" />
+        <div className="flex min-w-0 flex-1 justify-center">{wide && hintPill}</div>
         {!connected && (
           <span className="flex items-center gap-1 rounded-full bg-destructive/20 px-2.5 py-1 text-xs font-semibold text-red-200">
             <WifiOff className="h-3.5 w-3.5" /> Reconnecting…
@@ -168,71 +207,70 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
             {secondsLeft}s
           </span>
         )}
-        <span className="rounded-full bg-black/30 px-2.5 py-1 text-xs font-bold tracking-[0.2em] text-muted-foreground">{v.code}</span>
+        <span className="shrink-0 rounded-full bg-black/30 px-2.5 py-1 text-xs font-bold tracking-[0.2em] text-muted-foreground">{v.code}</span>
       </header>
 
-      {/* Felt */}
-      <div className="relative min-h-0 flex-1 px-2 sm:px-6">
-        <div className="felt absolute inset-x-2 bottom-1 top-1 rounded-[50%/42%] sm:inset-x-6" />
-        {others.map((idx, k) => {
-          const spot = SPOTS[others.length]?.[k] ?? [50, 10];
-          return (
-            <div key={v.seats[idx].id} className="absolute z-10 -translate-x-1/2" style={{ left: `${spot[0]}%`, top: `${spot[1]}%` }}>
-              <Seat
-                seat={v.seats[idx]}
-                active={playing && v.turn === idx}
-                dealer={v.dealer === idx}
-                progress={progress}
-                maal={v.maal}
-                compact={!landscape && vp.h < 700}
-              />
-            </div>
-          );
-        })}
-        <div className="absolute inset-x-0 top-[48%] z-10 flex -translate-y-1/2 flex-col items-center gap-3">
-          <div
-            className={cn(
-              "max-w-[92%] rounded-full px-4 py-1.5 text-center text-xs font-semibold shadow sm:text-sm",
-              h.myTurn ? "bg-black/55 text-gold" : "bg-black/35 text-white/80",
-            )}
-            data-testid="hint"
-          >
-            {hint}
+      {/* Felt with opponents on the rim */}
+      <div className="relative min-h-0 flex-1 px-3 pb-2 pt-1 sm:px-8">
+        <div className="relative mx-auto h-full w-full max-w-[1180px]" style={{ maxHeight: landscape ? Math.max(240, (vp.w - 32) * 0.62) : (vp.w - 24) * 1.62 }}>
+          <div className="felt absolute inset-x-0 rounded-[50%/46%]" style={{ top: seatSize * 0.55, bottom: 4 }} />
+          {others.map((idx, k) => {
+            const spot = (landscape ? SPOTS : SPOTS_PORTRAIT)[others.length]?.[k] ?? [50, 0];
+            return (
+              <div key={v.seats[idx].id} className="absolute z-10 -translate-x-1/2" style={{ left: `${spot[0]}%`, top: `${spot[1]}%` }}>
+                <Seat
+                  seat={v.seats[idx]}
+                  active={playing && v.turn === idx}
+                  dealer={v.dealer === idx}
+                  progress={progress}
+                  maal={v.maal}
+                  size={seatSize}
+                  showSets={landscape ? vp.h >= 380 : true}
+                  fanLeft={spot[0] > 60}
+                  inline={landscape && vp.h < 520 && spot[1] < 10}
+                />
+              </div>
+            );
+          })}
+          <div className="absolute inset-x-0 z-10 flex justify-center" style={{ top: "54%", transform: "translateY(-50%)" }}>
+            <Piles
+              cw={pileCw}
+              stockCount={v.stockCount}
+              discardTop={v.discardTop}
+              discardUnder={v.discardRecent.length > 1 ? v.discardRecent[v.discardRecent.length - 2] : null}
+              maal={v.maal}
+              maalHidden={v.maalHidden}
+              canDraw={canDraw}
+              onDraw={(from) => run("draw", { from })}
+            />
           </div>
-          <Piles
-            cw={pileCw}
-            stockCount={v.stockCount}
-            discardTop={v.discardTop}
-            discardUnder={v.discardRecent.length > 1 ? v.discardRecent[v.discardRecent.length - 2] : null}
-            maal={v.maal}
-            maalHidden={v.maalHidden}
-            canDraw={canDraw}
-            onDraw={(from) => run("draw", { from })}
-          />
         </div>
       </div>
 
-      {/* My area */}
+      {!wide && <div className="flex justify-center px-3 pb-1">{hintPill}</div>}
+
+      {/* My dock + hand */}
       {seated && (
-        <div className="safe-pb shrink-0 px-2 pb-1 sm:px-6">
-          <div className="flex flex-wrap items-center gap-2 py-1.5">
-            <div className={cn("flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold", h.myTurn ? "bg-gold text-[#2a1d00]" : "bg-black/40")}>
+        <div className="safe-pb relative z-20 shrink-0 px-2 pb-1 sm:px-8">
+          <div className="mx-auto flex max-w-[1180px] flex-wrap items-center gap-2 pb-1.5">
+            <div className={cn("flex items-center gap-1.5 rounded-full py-1 pl-1 pr-2.5 text-xs font-bold", h.myTurn ? "bg-gradient-to-b from-[#f7c45a] to-[#eba52a] text-[#2a1d00]" : "bg-black/40")}>
+              <Avatar name={me?.name ?? "You"} index={me?.avatar ?? 0} size={22} />
               {me?.name}
               {v.dealer === h.myIndex && <span className="rounded-full bg-white px-1 text-[9px] text-[#0b2a1f]">D</span>}
             </div>
             {!h.seen ? (
-              <span className="rounded-full border border-gold/40 px-2.5 py-1 text-xs font-bold text-gold" data-testid="pure-count">
+              <span className="rounded-full border border-gold/40 bg-black/20 px-2.5 py-1 text-xs font-bold text-gold" data-testid="pure-count">
                 Pure {Math.min(3, h.pureSets.length)}/3{h.dubleeOk ? ` · Dublee ${Math.min(7, h.dublees.length)}/7` : ""}
               </span>
             ) : (
-              <span className="flex items-center gap-1 rounded-full border border-emerald-400/40 px-2.5 py-1 text-xs font-bold text-emerald-300">
+              <span className="flex items-center gap-1 rounded-full border border-emerald-400/40 bg-black/20 px-2.5 py-1 text-xs font-bold text-emerald-300">
                 <Eye className="h-3.5 w-3.5" /> Seen{h.seen === "dublee" ? " · dublees" : ""}
               </span>
             )}
             {me && me.shown.length > 0 && (
-              <div className="flex items-center gap-1 overflow-x-auto">
+              <div className="flex max-w-[45vw] items-center gap-1 overflow-x-auto">
                 {me.shown.map((g, i) => (
-                  <div key={i} className="flex rounded bg-black/30 p-[2px]">
+                  <div key={i} className="flex shrink-0 rounded bg-black/30 p-[2px]">
                     {g.map((c, j) => (
                       <PlayingCard key={c} id={c} width={20} maal={v.maal} style={{ marginLeft: j ? -8 : 0 }} />
                     ))}
@@ -242,52 +280,47 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
             )}
             <div className="ml-auto flex items-center gap-1.5">
               <Button
-                size="sm"
+                size="icon"
                 variant="secondary"
+                className="h-9 w-9"
                 onClick={() => {
                   const next = sortMode === "suit" ? "rank" : "suit";
                   setSortMode(next);
                   arrange(next === "suit" ? sortBySuit(order) : sortByRank(order));
                 }}
-                aria-label="Sort cards"
+                aria-label={`Sort by ${sortMode === "suit" ? "rank" : "suit"}`}
+                title="Sort"
               >
-                <ArrowDownUp /> <span className="hidden sm:inline">Sort</span>
+                <ArrowDownUp />
               </Button>
-              <Button size="sm" variant="secondary" onClick={() => arrange(groupedOrder({ ...v, hand: order }, h))} aria-label="Group sets">
-                <Layers /> <span className="hidden sm:inline">Group</span>
+              <Button size="icon" variant="secondary" className="h-9 w-9" onClick={() => arrange(groupedOrder({ ...v, hand: order }, h))} aria-label="Group sets" title="Group sets">
+                <Layers />
               </Button>
-              {discardPhase && !h.seen && (h.canShowPure || selected.size === 9) && (
-                <Button size="sm" variant="felt" className="ring-1 ring-gold/60" onClick={() => show("pure")} data-testid="show-pure">
-                  <Sparkles /> Show 3 pure
-                </Button>
-              )}
-              {discardPhase && !h.seen && h.canShowDublee && (
-                <Button size="sm" variant="felt" className="ring-1 ring-gold/60" onClick={() => show("dublee")} data-testid="show-dublee">
-                  <Sparkles /> Show 7 dublees
-                </Button>
-              )}
-              {discardPhase && h.seen && (
-                <Button size="sm" variant={h.canDeclare ? "gold" : "secondary"} onClick={declare} disabled={!h.canDeclare} data-testid="declare">
+              {primary}
+              {discardPhase && h.seen && !h.canDeclare && (
+                <Button size={btn} variant="secondary" disabled data-testid="declare">
                   <Trophy /> Declare
                 </Button>
               )}
               {discardPhase && (
-                <Button size="sm" variant="gold" disabled={!one || one === v.picked} onClick={() => one && discard(one)} data-testid="discard-btn">
-                  Discard
+                <Button size={btn} variant={primary ? "felt" : "gold"} disabled={!one || one === v.picked} onClick={() => one && discard(one)} data-testid="discard-btn">
+                  <ArrowUp /> {one && vp.w >= 400 ? `Discard ${cardLabel(one)}` : "Discard"}
                 </Button>
               )}
             </div>
           </div>
-          <Hand
-            cards={order}
-            maal={v.maal}
-            selected={selected}
-            drawn={v.drawn}
-            cardWidth={handCw}
-            onToggle={toggle}
-            onReorder={arrange}
-            onSwipeUp={discardPhase ? (c) => discard(c) : undefined}
-          />
+          <div className="mx-auto max-w-[1180px]">
+            <Hand
+              cards={order}
+              maal={v.maal}
+              selected={selected}
+              drawn={v.drawn}
+              cardWidth={handCw}
+              onToggle={toggle}
+              onReorder={arrange}
+              onSwipeUp={discardPhase ? (c) => discard(c) : undefined}
+            />
+          </div>
         </div>
       )}
 

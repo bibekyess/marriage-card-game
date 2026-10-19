@@ -1,4 +1,3 @@
-import { Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const GRADIENTS = [
@@ -71,8 +70,8 @@ export function Avatar({ name, index, size = 44, isBot, offline, active, progres
         {initials(name)}
       </div>
       {isBot && (
-        <span className="absolute -bottom-1 -right-1 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-[#1b2b25] text-gold ring-2 ring-background">
-          <Bot className="h-3 w-3" />
+        <span className="absolute -top-1 -right-2 rounded-full bg-[#0b1713] px-1 text-[8px] font-extrabold leading-[14px] tracking-wider text-gold ring-1 ring-gold/40">
+          BOT
         </span>
       )}
       {offline && !isBot && (

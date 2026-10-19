@@ -10,7 +10,7 @@ export default defineConfig({
   build: { outDir: "../../dist/client", emptyOutDir: true },
   server: {
     port: 5173,
-    proxy: { "/socket.io": { target: "http://localhost:3000", ws: true }, "/api": "http://localhost:3000" },
+    proxy: { "/socket.io": { target: process.env.API_URL || "http://localhost:3000", ws: true }, "/api": process.env.API_URL || "http://localhost:3000" },
   },
   test: { root: ".", include: ["tests/**/*.test.ts"] },
 } as any);

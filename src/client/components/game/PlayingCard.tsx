@@ -15,17 +15,48 @@ interface Props {
   style?: React.CSSProperties;
 }
 
-function Crown({ color }: { color: string }) {
+/** Court-card emblems: King's crown, Queen's tiara, Jack's fleur. Drawn in gold with a suit-coloured jewel. */
+function CourtEmblem({ rank, color }: { rank: number; color: string }) {
+  const gold = "url(#mg-gold)";
   return (
-    <svg viewBox="0 0 24 24" className="h-[44%] w-[44%]" aria-hidden>
-      <path
-        d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 10H5L3 8z"
-        fill="none"
-        stroke={color}
-        strokeWidth={1.6}
-        strokeLinejoin="round"
-      />
-      <path d="M5 20h14" stroke={color} strokeWidth={1.6} strokeLinecap="round" />
+    <svg viewBox="0 0 40 40" className="h-[80%] w-[80%]" aria-hidden>
+      <defs>
+        <linearGradient id="mg-gold" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ffd77a" />
+          <stop offset="1" stopColor="#c98a12" />
+        </linearGradient>
+      </defs>
+      {rank === 13 && (
+        <>
+          <path d="M6 30 L4 12 L13 20 L20 7 L27 20 L36 12 L34 30 Z" fill={gold} stroke="#8a5a00" strokeWidth="1" strokeLinejoin="round" />
+          <rect x="6" y="30" width="28" height="4" rx="1.5" fill={gold} stroke="#8a5a00" strokeWidth="1" />
+          {[4, 20, 36].map((x, i) => (
+            <circle key={i} cx={x} cy={i === 1 ? 6 : 11} r="2.2" fill={gold} stroke="#8a5a00" strokeWidth=".8" />
+          ))}
+          <circle cx="20" cy="24" r="3" fill={color} />
+        </>
+      )}
+      {rank === 12 && (
+        <>
+          <path d="M8 30 Q6 18 12 14 Q14 22 20 12 Q26 22 28 14 Q34 18 32 30 Z" fill={gold} stroke="#8a5a00" strokeWidth="1" strokeLinejoin="round" />
+          <rect x="8" y="30" width="24" height="4" rx="1.5" fill={gold} stroke="#8a5a00" strokeWidth="1" />
+          <circle cx="20" cy="9" r="2.6" fill={color} stroke="#8a5a00" strokeWidth=".8" />
+          <circle cx="20" cy="23" r="2.4" fill={color} />
+        </>
+      )}
+      {rank === 11 && (
+        <>
+          <path
+            d="M20 5 C15 10 15 16 20 20 C25 16 25 10 20 5 Z M20 20 C14 15 7 17 8 24 C12 22 16 22 18 25 Z M20 20 C26 15 33 17 32 24 C28 22 24 22 22 25 Z"
+            fill={gold}
+            stroke="#8a5a00"
+            strokeWidth="1"
+            strokeLinejoin="round"
+          />
+          <rect x="13" y="26" width="14" height="3.5" rx="1.5" fill={gold} stroke="#8a5a00" strokeWidth=".9" />
+          <path d="M18 29.5 L20 35 L22 29.5 Z" fill={color} />
+        </>
+      )}
     </svg>
   );
 }
@@ -84,18 +115,18 @@ export const PlayingCard = memo(function PlayingCard({ id, width = 56, maal, sel
         <div
           className="absolute flex items-center justify-center rounded-[4px]"
           style={{
-            right: width * 0.08,
-            bottom: width * 0.1,
-            width: width * 0.56,
-            height: h * 0.52,
-            background: red ? "linear-gradient(160deg,#fff4ef,#fbe3dc)" : "linear-gradient(160deg,#f3f4f8,#e3e6ee)",
-            border: `1px solid ${red ? "#efc6bd" : "#cfd3dd"}`,
+            right: width * 0.09,
+            bottom: width * 0.09,
+            width: width * 0.58,
+            height: h * 0.56,
+            borderRadius: width * 0.06,
+            background: red
+              ? "linear-gradient(160deg,#fff6f1 0%,#fde6dd 100%)"
+              : "linear-gradient(160deg,#f6f7fb 0%,#e4e8f1 100%)",
+            boxShadow: `inset 0 0 0 1px ${red ? "#f0c9bf" : "#cdd3e0"}, inset 0 0 0 ${Math.max(2, width * 0.04)}px ${red ? "#fff6f1" : "#f6f7fb"}, inset 0 0 0 ${Math.max(2.6, width * 0.05)}px ${red ? "#f0c9bf" : "#cdd3e0"}`,
           }}
         >
-          <Crown color={c.rank === 11 ? "#b8860b" : color} />
-          <span className="absolute bottom-[6%] font-extrabold opacity-80" style={{ fontSize: width * 0.2 }}>
-            {sym}
-          </span>
+          <CourtEmblem rank={c.rank} color={color} />
         </div>
       ) : (
         <span className="absolute leading-none" style={{ right: width * 0.1, bottom: width * 0.1, fontSize: width * 0.62 }}>

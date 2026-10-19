@@ -10,6 +10,7 @@ import { JoinScreen } from "@/screens/JoinScreen";
 import { Lobby } from "@/screens/Lobby";
 import { TableScreen } from "@/screens/TableScreen";
 import { Loading } from "@/screens/Loading";
+import { DevGallery } from "@/screens/DevGallery";
 
 export function App() {
   const path = usePath();
@@ -31,13 +32,14 @@ export function App() {
   // present there, but keep the seat so the link brings you back.
   const lastCode = useRef(code);
   useEffect(() => {
-    if (path !== "/" && !code) navigate("/", true);
+    if (path !== "/" && !code && !(import.meta.env.DEV && path === "/__gallery")) navigate("/", true);
     if (lastCode.current && lastCode.current !== code && game.session?.code === lastCode.current) detachTable();
     lastCode.current = code;
   }, [path, code, game.session]);
 
   let screen: React.ReactNode;
-  if (!code) screen = <Home />;
+  if (import.meta.env.DEV && path === "/__gallery") screen = <DevGallery />;
+  else if (!code) screen = <Home />;
   else if (game.session?.code !== code) screen = <JoinScreen code={code} lost={game.lost} />;
   else if (!game.view) screen = <Loading text="Taking your seat…" />;
   else if (game.view.status === "lobby") screen = <Lobby view={game.view} />;
