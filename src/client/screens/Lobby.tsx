@@ -120,7 +120,7 @@ export function Lobby({ view: v }: { view: TableView }) {
                     {s.id === v.you && <span className="text-xs font-normal text-muted-foreground">(you)</span>}
                     {s.id === v.hostId && <Crown className="h-3.5 w-3.5 text-gold" aria-label="Host" />}
                   </div>
-                  <div className="text-xs text-muted-foreground">{s.isBot ? "Bot" : s.connected ? "Ready" : "Offline"}</div>
+                  <div className="text-xs text-muted-foreground">{s.isBot ? `Computer player · ${v.settings.botSpeed}` : s.connected ? "Ready" : "Offline"}</div>
                 </div>
                 {host && s.id !== v.you && (
                   <Button size="icon" variant="ghost" aria-label={`Remove ${s.name}`} onClick={() => run("removeSeat", { id: s.id })}>

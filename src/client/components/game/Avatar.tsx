@@ -70,7 +70,7 @@ export function Avatar({ name, index, size = 44, isBot, offline, active, progres
         {initials(name)}
       </div>
       {isBot && (
-        <span className="absolute -top-1 -right-2 rounded-full bg-[#0b1713] px-1 text-[8px] font-extrabold leading-[14px] tracking-wider text-gold ring-1 ring-gold/40">
+        <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 rounded-full bg-[#0b1713] px-1 text-[8px] font-extrabold leading-[13px] tracking-wider text-gold ring-1 ring-gold/40">
           BOT
         </span>
       )}

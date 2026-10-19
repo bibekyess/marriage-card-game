@@ -45,8 +45,8 @@ export function Home() {
   }
 
   return (
-    <div className="app-bg min-h-full overflow-y-auto">
-      <div className="mx-auto flex min-h-full max-w-5xl flex-col px-4 py-6 sm:px-8 sm:py-10">
+    <div className="app-bg h-full overflow-y-auto">
+      <div className="mx-auto flex min-h-[100dvh] max-w-5xl flex-col px-4 py-6 sm:px-8 sm:py-10">
         <header className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-b from-[#f7c45a] to-[#eba52a] text-[#2a1d00] shadow">
@@ -71,12 +71,12 @@ export function Home() {
               Open a table, share the code, and play a full match in the browser. Scores and who-owes-whom are worked out for you.
             </p>
             <div className="mt-8 hidden gap-[-20px] md:flex" aria-hidden>
-              {["QH0", "7D1", "AS2", "JC0"].map((c, i) => (
+              {["QH0", "AS2", "JC0", "7D1"].map((c, i) => (
                 <PlayingCard
                   key={c}
                   id={c}
                   width={84}
-                  maal={i === 1 ? "7D0" : null}
+                  maal={c === "7D1" ? "7D1" : null}
                   style={{ transform: `rotate(${(i - 1.5) * 7}deg) translateY(${Math.abs(i - 1.5) * 8}px)`, marginLeft: i ? -22 : 0 }}
                 />
               ))}
@@ -132,13 +132,15 @@ export function Home() {
       </div>
 
       <Dialog open={dialog === "create"} onOpenChange={(o) => !o && setDialog(null)}>
-        <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="flex max-h-[94dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5 sm:p-6">
           <DialogHeader>
             <DialogTitle>New table</DialogTitle>
             <DialogDescription>Set the stakes and house rules. You can change them between rounds.</DialogDescription>
           </DialogHeader>
           <RulesForm value={settings} onChange={setSettings} />
-          <DialogFooter>
+          </div>
+          <DialogFooter className="shrink-0 border-t border-white/[0.06] bg-popover px-5 py-3 sm:px-6">
             <Button variant="gold" size="lg" className="w-full" onClick={() => go("create")} disabled={busy}>
               Open table
             </Button>
@@ -147,7 +149,8 @@ export function Home() {
       </Dialog>
 
       <Dialog open={dialog === "practice"} onOpenChange={(o) => !o && setDialog(null)}>
-        <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="flex max-h-[94dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5 sm:p-6">
           <DialogHeader>
             <DialogTitle>Practice with bots</DialogTitle>
             <DialogDescription>Play a match against computer players. Nobody else can join.</DialogDescription>
@@ -163,7 +166,8 @@ export function Home() {
             </div>
           </div>
           <RulesForm value={settings} onChange={setSettings} />
-          <DialogFooter>
+          </div>
+          <DialogFooter className="shrink-0 border-t border-white/[0.06] bg-popover px-5 py-3 sm:px-6">
             <Button variant="gold" size="lg" className="w-full" onClick={() => go("practice")} disabled={busy}>
               Deal
             </Button>

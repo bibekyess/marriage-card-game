@@ -3,7 +3,8 @@ import { completesPure, findDublees, findPureSets, isTunnel } from "../../shared
 import type { TableView } from "../../shared/protocol";
 import { dubleesAllowed } from "../../shared/settings";
 
-export const MAAL_TAG: Record<MaalKind, string> = { tiplu: "T", poplu: "P", jhiplu: "J", alter: "A", joker: "★" };
+// One marker for every wild card: letters like "J" or "A" read as ranks on a card.
+export const MAAL_TAG: Record<MaalKind, string> = { tiplu: "★", poplu: "★", jhiplu: "★", alter: "★", joker: "★" };
 export const MAAL_NAME: Record<MaalKind, string> = {
   tiplu: "Tiplu",
   poplu: "Poplu",

@@ -13,7 +13,7 @@ import type { TableView } from "../../shared/protocol";
 
 function Item({ icon: Icon, label, onClick, danger }: { icon: typeof BookOpen; label: string; onClick(): void; danger?: boolean }) {
   return (
-    <button onClick={onClick} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold hover:bg-white/5 ${danger ? "text-red-300" : ""}`}>
+    <button onClick={onClick} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-semibold hover:bg-white/5 [@media(max-height:500px)]:py-1.5 ${danger ? "text-red-300" : ""}`}>
       <Icon className="h-4 w-4 opacity-80" /> {label}
     </button>
   );
@@ -47,20 +47,20 @@ export function MenuSheet({ view: v, open, onOpenChange, onScores }: { view: Tab
               <Item icon={Bot} label={me.autoplay ? "Take back control" : "Let a bot play for me"} onClick={() => (close(), run("autoplay", { on: !me.autoplay }))} />
             )}
           </nav>
-          <Separator className="my-3" />
+          <Separator className="my-2" />
           <div className="space-y-1 px-3">
-            <label className="flex items-center justify-between py-2 text-sm font-semibold">
+            <label className="flex items-center justify-between py-1.5 text-sm font-semibold">
               <span className="flex items-center gap-3"><Volume2 className="h-4 w-4 opacity-80" /> Sound</span>
               <Switch checked={sound} onCheckedChange={(c) => (setSound(c), setS(c))} />
             </label>
-            <label className="flex items-center justify-between py-2 text-sm font-semibold">
+            <label className="flex items-center justify-between py-1.5 text-sm font-semibold">
               <span className="flex items-center gap-3"><Vibrate className="h-4 w-4 opacity-80" /> Haptics</span>
               <Switch checked={haptic} onCheckedChange={(c) => (setHaptics(c), setH(c))} />
             </label>
           </div>
           {host && (
             <>
-              <Separator className="my-3" />
+              <Separator className="my-2" />
               <p className="px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Host</p>
               <nav className="space-y-0.5">
                 {v.seats
@@ -86,7 +86,7 @@ export function MenuSheet({ view: v, open, onOpenChange, onScores }: { view: Tab
               </nav>
             </>
           )}
-          <Separator className="my-3" />
+          <Separator className="my-2" />
           <Item
             icon={LogOut}
             label="Leave table"

@@ -16,13 +16,16 @@ interface Props {
   fanLeft?: boolean;
   /** Name beside the avatar instead of below (saves height on short screens). */
   inline?: boolean;
+  /** Which way the shown sets extend, so they stay on the table. */
+  align?: "left" | "center" | "right";
 }
 
 /** An opponent on the rim of the table: avatar, a fan of their face-down cards, name and status. */
-export function Seat({ seat, active, dealer, progress, maal, size = 46, showSets = true, fanLeft, inline }: Props) {
+export function Seat({ seat, active, dealer, progress, maal, size = 46, showSets = true, fanLeft, inline, align = "center" }: Props) {
   const fan = Math.min(5, Math.max(1, Math.round(seat.cardCount / 5)));
+  const setCw = Math.max(16, Math.round(size * 0.4));
   return (
-    <div className={cn("flex items-center", inline ? "flex-row gap-6" : "flex-col")} data-testid="seat" data-active={active || undefined}>
+    <div className={cn("relative flex items-center", inline ? "flex-row gap-6" : "flex-col")} data-testid="seat" data-active={active || undefined}>
       <div className="relative">
         <Avatar name={seat.name} index={seat.avatar} size={size} isBot={seat.isBot || seat.autoplay} offline={!seat.connected} active={active} progress={active ? progress : null} />
         {dealer && (
@@ -54,11 +57,17 @@ export function Seat({ seat, active, dealer, progress, maal, size = 46, showSets
         {seat.seen && <Eye className="h-3 w-3 shrink-0" aria-label={seat.seen === "dublee" ? "Seen with dublees" : "Seen the maal"} />}
       </div>
       {showSets && seat.shown.length > 0 && (
-        <div className="mt-1 flex max-w-[170px] flex-wrap justify-center gap-[3px]" aria-label={`${seat.name}'s shown sets`}>
+        <div
+          className={cn(
+            "absolute top-full mt-1 flex w-max flex-nowrap gap-[3px]",
+            inline ? "left-full top-0 ml-3 mt-0" : align === "left" ? "left-0" : align === "right" ? "right-0" : "left-1/2 -translate-x-1/2",
+          )}
+          aria-label={`${seat.name}'s shown sets`}
+        >
           {seat.shown.map((g, i) => (
             <div key={i} className="flex rounded-[4px] bg-black/30 p-[2px]">
               {g.map((c, j) => (
-                <PlayingCard key={c} id={c} width={17} maal={maal} style={{ marginLeft: j ? -7 : 0 }} className="!shadow-none" />
+                <PlayingCard key={c} id={c} width={setCw} maal={maal} style={{ marginLeft: j ? -Math.round(setCw * 0.42) : 0 }} className="!shadow-none" />
               ))}
             </div>
           ))}

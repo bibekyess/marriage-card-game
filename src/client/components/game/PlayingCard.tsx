@@ -67,10 +67,10 @@ export const PlayingCard = memo(function PlayingCard({ id, width = 56, maal, sel
         style={base}
         aria-label="Face-down card"
       >
-        <div className="absolute inset-[7%] rounded-[inherit] border border-white/25" />
+
         <svg viewBox="0 0 40 56" className="absolute inset-[14%] h-[72%] w-[72%] opacity-80" aria-hidden>
-          <path d="M20 4 L36 28 L20 52 L4 28 Z" fill="none" stroke="rgba(255,255,255,.55)" strokeWidth="1.4" />
-          <path d="M20 14 L29 28 L20 42 L11 28 Z" fill="none" stroke="rgba(255,255,255,.35)" strokeWidth="1" />
+          <path d="M20 4 L36 28 L20 52 L4 28 Z" fill="none" stroke="rgba(245,184,61,.7)" strokeWidth="1.4" />
+          <path d="M20 14 L29 28 L20 42 L11 28 Z" fill="rgba(245,184,61,.18)" stroke="rgba(245,184,61,.5)" strokeWidth="1" />
         </svg>
       </div>
     );
@@ -129,7 +129,11 @@ export const PlayingCard = memo(function PlayingCard({ id, width = 56, maal, sel
       )}
       {kind && (
         <span
-          className="absolute rounded-full bg-gradient-to-b from-[#ffd36e] to-[#e9a224] font-extrabold text-[#3b2a05] shadow"
+          className={cn(
+            "absolute rounded-full font-extrabold shadow",
+            // Jokers are wild but score nothing: silver. Point cards: gold.
+            kind === "joker" ? "bg-gradient-to-b from-[#f1f3f6] to-[#b8bfca] text-[#2b3038]" : "bg-gradient-to-b from-[#ffd36e] to-[#e9a224] text-[#3b2a05]",
+          )}
           style={{
             right: width * 0.06,
             top: width * 0.06,

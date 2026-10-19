@@ -49,7 +49,8 @@ export function RoundResult({ view: v, open, onOpenChange, onScores }: { view: T
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[94dvh] overflow-y-auto overflow-x-hidden sm:max-w-3xl" data-testid="round-result">
+      <DialogContent className="flex max-h-[94dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl" data-testid="round-result">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden p-5 sm:p-6">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-b from-[#ffd36e] to-[#e9a224] text-[#2a1d00]">
@@ -57,7 +58,7 @@ export function RoundResult({ view: v, open, onOpenChange, onScores }: { view: T
             </div>
             <div>
               <DialogTitle className="text-xl">
-                {!r.winnerId ? "Round called off" : r.winnerId === v.you ? "You won" : `${winner} won`} · round {v.rounds[v.rounds.length - 1]?.round}
+                Round {v.rounds[v.rounds.length - 1]?.round} · {!r.winnerId ? "called off" : r.winnerId === v.you ? "you won!" : `${winner} won`}
               </DialogTitle>
               <DialogDescription>
                 {!r.winnerId
@@ -100,7 +101,11 @@ export function RoundResult({ view: v, open, onOpenChange, onScores }: { view: T
                     <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Maal</div>
                     <div className="text-sm font-bold tabular-nums">
                       {p.maal}
-                      {p.rawMaal !== p.maal && !p.seen && <span className="ml-1 text-xs text-muted-foreground line-through">{p.rawMaal}</span>}
+                      {p.rawMaal !== p.maal && !p.seen && (
+                        <span className="ml-1 text-[10px] font-medium text-muted-foreground" title={`${p.rawMaal} maal not counted — didn't see`}>
+                          ({p.rawMaal} not counted)
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div>
@@ -117,7 +122,9 @@ export function RoundResult({ view: v, open, onOpenChange, onScores }: { view: T
           })}
         </div>
 
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        </div>
+        {/* Always-visible footer so the next action is never scrolled away. */}
+        <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-white/[0.06] bg-popover px-5 py-3 sm:flex-row sm:justify-end sm:px-6">
           <Button variant="outline" onClick={onScores}>
             <BarChart3 /> {last ? "Settle up" : "Scoreboard"}
           </Button>

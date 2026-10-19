@@ -73,8 +73,8 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   const playing = v.status === "playing";
 
   // Card sizes follow the screen.
-  const handCw = Math.round(landscape ? Math.min(vp.h * 0.17, vp.w * 0.062, 84) : Math.min(vp.w * 0.125, 60));
-  const pileCw = Math.round(landscape ? Math.min(vp.h * 0.145, vp.w >= 1100 ? 104 : 76) : Math.min(vp.w * 0.15, 64));
+  const handCw = Math.round(landscape ? Math.min(vp.h * 0.17, vp.w * 0.062, vp.h >= 800 ? 100 : 84) : Math.min(vp.w * 0.14, 62));
+  const pileCw = Math.round(landscape ? Math.min(vp.h * 0.145, vp.w >= 1100 ? 120 : 76) : Math.min(vp.w * 0.16, 68));
 
   // Local card order (instant feedback); server keeps it so a refresh keeps your arrangement.
   const [order, setOrder] = useState<CardId[]>(v.hand);
@@ -107,14 +107,24 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   const [menu, setMenu] = useState(false);
   const [scores, setScores] = useState(false);
   const [resultOpen, setResultOpen] = useState(true);
+  const [lastThrow, setLastThrow] = useState<{ by: string; card: CardId } | null>(null);
+  const [turnFlash, setTurnFlash] = useState(false);
 
   // Sounds and haptics on what changed.
   const prev = useRef(v);
   useEffect(() => {
     const p = prev.current;
     prev.current = v;
-    if (v.status === "playing" && (p.turn !== v.turn || p.status !== "playing") && h.myTurn) sfx.turn();
-    else if (p.discardTop !== v.discardTop || p.stockCount !== v.stockCount) sfx.card();
+    if (v.status === "playing" && (p.turn !== v.turn || p.status !== "playing") && h.myTurn) {
+      sfx.turn();
+      if (!me?.autoplay) {
+        setTurnFlash(true);
+        setTimeout(() => setTurnFlash(false), 1300);
+      }
+    } else if (p.discardTop !== v.discardTop || p.stockCount !== v.stockCount) sfx.card();
+    // Who threw the card now on top of the pile.
+    if (p.status === "playing" && v.status === "playing" && p.turn !== v.turn && v.discardTop && v.discardTop !== p.discardTop)
+      setLastThrow({ by: v.seats[p.turn]?.id === v.you ? "You" : v.seats[p.turn]?.name ?? "", card: v.discardTop });
     const seenCount = (x: TableView) => x.seats.filter((s) => s.seen).length;
     if (seenCount(v) > seenCount(p)) sfx.show();
     if (p.status === "playing" && v.status !== "playing" && v.reveal) {
@@ -147,8 +157,8 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   else if (!seated)
     hint = `You're watching${v.seats.length >= MAX_PLAYERS ? " — the table is full" : " — you'll be dealt in next round"}. ${turnName}'s turn.`;
   else if (me?.autoplay) hint = "A bot is playing for you — open the menu to take back control";
-  else if (canDraw) hint = h.seen || !v.settings.restrictPickup ? "Your turn — draw from the stock or the discard pile" : "Your turn — draw a card (discard only if it completes a pure set)";
-  else if (discardPhase) hint = h.canDeclare ? "You can finish! Tap Declare" : h.canShowPure || h.canShowDublee ? "You can show and see the maal" : "Throw a card — tap one, then Discard (or flick it up)";
+  else if (canDraw) hint = h.canPickDiscard ? "Your turn — draw from the stock or take the discard" : "Your turn — draw from the stock";
+  else if (discardPhase) hint = h.canDeclare ? "You can finish — tap Declare!" : h.canShowPure || h.canShowDublee ? "You can show and see the maal" : "Pick a card to throw";
   else hint = `${turnName} is playing…`;
 
   const discard = (c: CardId) => run("discard", { card: c });
@@ -158,12 +168,18 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   const myTotal = seated ? totals(v)[v.you] ?? 0 : 0;
 
   const wide = vp.w >= 700;
+  // Short landscape phones have no room on the felt for the "Your turn" pill; the hint flashes instead.
+  const shortScreen = landscape && vp.h < 600;
   const seatSize = Math.round(landscape ? Math.min(Math.max(vp.h * 0.1, 34), vp.w >= 1100 ? 66 : 56) : Math.min(vp.w * 0.11, 48));
   const hintPill = (
     <div
       className={cn(
-        "truncate rounded-full px-4 py-1.5 text-center text-xs font-semibold sm:text-sm",
-        h.myTurn ? "bg-gold/15 text-gold ring-1 ring-gold/40" : "bg-white/[0.06] text-white/75",
+        "line-clamp-2 rounded-full px-4 py-1.5 text-center text-xs font-semibold leading-snug sm:text-sm",
+        turnFlash && shortScreen
+          ? "bg-gradient-to-b from-[#ffd77a] to-[#e9a224] font-extrabold text-[#2a1d00] transition-colors"
+          : h.myTurn
+            ? "bg-gold/15 text-gold ring-1 ring-gold/40 transition-colors"
+            : "bg-white/[0.06] text-white/75",
       )}
       data-testid="hint"
     >
@@ -225,8 +241,8 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
       </header>
 
       {/* Felt with opponents on the rim */}
-      <div className="relative min-h-0 flex-1 px-3 pb-2 pt-1 sm:px-8">
-        <div className="relative mx-auto h-full w-full max-w-[1180px]" style={{ maxHeight: landscape ? Math.max(240, (vp.w - 32) * 0.62) : (vp.w - 24) * 1.62 }}>
+      <div className="relative flex min-h-0 flex-1 items-center px-3 pb-2 pt-1 sm:px-8">
+        <div className="relative mx-auto h-full w-full max-w-[1100px]" style={{ maxHeight: landscape ? Math.max(240, (vp.w - 32) * 0.62) : (vp.w - 24) * 1.2 }}>
           <div className="felt absolute inset-x-0 rounded-[50%/46%]" style={{ top: seatSize * 0.55, bottom: 4 }} />
           {others.map((idx, k) => {
             const spot = (landscape ? SPOTS : SPOTS_PORTRAIT)[others.length]?.[k] ?? [50, 0];
@@ -241,11 +257,19 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
                   size={seatSize}
                   showSets={landscape ? vp.h >= 380 : true}
                   fanLeft={spot[0] > 60}
+                  align={spot[0] < 35 ? "left" : spot[0] > 65 ? "right" : "center"}
                   inline={landscape && vp.h < 520 && spot[1] < 10}
                 />
               </div>
             );
           })}
+          {turnFlash && !shortScreen && (
+            <div className="pointer-events-none absolute inset-x-0 top-[26%] z-20 flex justify-center">
+              <span className="rounded-full bg-gradient-to-b from-[#ffd77a] to-[#e9a224] px-5 py-1.5 text-sm font-extrabold text-[#2a1d00] shadow-lift motion-safe:animate-card-in">
+                Your turn
+              </span>
+            </div>
+          )}
           <div className="absolute inset-x-0 z-10 flex justify-center" style={{ top: "54%", transform: "translateY(-50%)" }}>
             <Piles
               cw={pileCw}
@@ -256,6 +280,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
               maalHidden={v.maalHidden}
               canDraw={canDraw}
               canPickDiscard={canDraw && h.canPickDiscard}
+              thrownBy={lastThrow && lastThrow.card === v.discardTop ? lastThrow.by : null}
               onDraw={(from) => run("draw", { from })}
             />
           </div>
@@ -312,16 +337,16 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
                 <Layers />
               </Button>
               {primary}
-              {discardPhase && h.seen && !h.canDeclare && (
-                <Button size={btn} variant="secondary" disabled data-testid="declare">
-                  <Trophy /> Declare
-                </Button>
-              )}
-              {discardPhase && (
-                <Button size={btn} variant={!one || one === v.picked ? "secondary" : primary ? "felt" : "gold"} disabled={!one || one === v.picked} onClick={() => one && discard(one)} data-testid="discard-btn">
-                  <ArrowUp /> {one && vp.w >= 400 ? `Discard ${cardLabel(one)}` : "Discard"}
-                </Button>
-              )}
+              {discardPhase &&
+                (!one || one === v.picked ? (
+                  <Button size={btn} variant="outline" className="border-gold/50 text-gold/90 disabled:opacity-80" disabled data-testid="discard-btn">
+                    {one === v.picked && one ? "Can't throw back" : "Select a card"}
+                  </Button>
+                ) : (
+                  <Button size={btn} variant={primary ? "felt" : "gold"} onClick={() => discard(one)} data-testid="discard-btn">
+                    <ArrowUp /> {vp.w >= 400 ? `Discard ${cardLabel(one)}` : "Discard"}
+                  </Button>
+                ))}
             </div>
           </div>
           <div className="mx-auto max-w-[1180px]">
@@ -340,7 +365,15 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
       )}
 
       {v.reveal && !playing && (
-        <RoundResult view={v} open={resultOpen} onOpenChange={setResultOpen} onScores={() => setScores(true)} />
+        <RoundResult
+          view={v}
+          open={resultOpen}
+          onOpenChange={setResultOpen}
+          onScores={() => {
+            setResultOpen(false);
+            setScores(true);
+          }}
+        />
       )}
       {!playing && (!resultOpen || !v.reveal) && (
         <div className="absolute bottom-6 left-1/2 z-30 flex -translate-x-1/2 gap-2">

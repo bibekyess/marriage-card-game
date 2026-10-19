@@ -9,7 +9,7 @@ import { nameOf, roundLabel, settlement, signed, totals } from "@/lib/format";
 import { scoreImage, scoreText } from "@/lib/shareImage";
 import { cn } from "@/lib/utils";
 import type { TableView } from "../../shared/protocol";
-import { formatMoney } from "../../shared/settings";
+import { currencyOf, formatMoney } from "../../shared/settings";
 
 const tone = (n: number) => (n > 0 ? "text-emerald-400" : n < 0 ? "text-red-400" : "text-muted-foreground");
 
@@ -48,7 +48,22 @@ async function copyText(v: TableView) {
   }
 }
 
+function useWide() {
+  const get = () => window.innerWidth > window.innerHeight && window.innerWidth >= 700;
+  const [wide, setWide] = useState(get);
+  useEffect(() => {
+    const on = () => setWide(get());
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, []);
+  return wide;
+}
+
+/** Short column label so 5 players fit on a phone. */
+const short = (name: string, n: number) => (n > 3 && Array.from(name).length > 7 ? Array.from(name).slice(0, 6).join("") + "…" : name);
+
 export function ScoreSheet({ view: v, open, onOpenChange }: { view: TableView; open: boolean; onOpenChange(o: boolean): void }) {
+  const wide = useWide();
   const [file, setFile] = useState<File | null>(null);
   const roundsPlayed = v.rounds.length;
   useEffect(() => {
@@ -73,11 +88,15 @@ export function ScoreSheet({ view: v, open, onOpenChange }: { view: TableView; o
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="mx-auto max-h-[92dvh] max-w-3xl overflow-y-auto rounded-t-2xl" data-testid="score-sheet">
-        <SheetHeader className="text-left">
+      <SheetContent
+        side={wide ? "right" : "bottom"}
+        className={cn("overflow-y-auto", wide ? "w-[min(560px,100vw)] sm:max-w-none" : "mx-auto max-h-[92dvh] max-w-3xl rounded-t-2xl")}
+        data-testid="score-sheet"
+      >
+        <SheetHeader>
           <SheetTitle>{roundLabel(v)}</SheetTitle>
           <SheetDescription>
-            {v.settings.pointRate} {cur} per point · {v.settings.unseenRule}
+            {currencyOf(cur).symbol} {v.settings.pointRate} per point · {v.settings.unseenRule[0].toUpperCase() + v.settings.unseenRule.slice(1)}
           </SheetDescription>
         </SheetHeader>
         <Tabs defaultValue={v.status === "matchEnd" ? "settle" : "scores"} className="mt-4">
@@ -88,13 +107,13 @@ export function ScoreSheet({ view: v, open, onOpenChange }: { view: TableView; o
 
           <TabsContent value="scores">
             <div className="overflow-x-auto rounded-xl border border-white/[0.06]">
-              <table className="w-full min-w-[420px] text-sm">
+              <table className="w-full text-xs sm:text-sm">
                 <thead>
                   <tr className="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-                    <th className="px-3 py-2.5 font-bold">Round</th>
+                    <th className="px-2 py-2 sm:px-3 font-bold">Round</th>
                     {ids.map((id) => (
-                      <th key={id} className={cn("px-3 py-2.5 text-right font-bold", id === v.you && "bg-gold/[0.07] text-gold")}>
-                        {id === v.you ? "You" : name(id)}
+                      <th key={id} className={cn("px-2 py-2 sm:px-3 text-right font-bold", id === v.you && "bg-gold/[0.07] text-gold")}>
+                        {id === v.you ? "You" : short(name(id), ids.length)}
                       </th>
                     ))}
                   </tr>
@@ -102,29 +121,29 @@ export function ScoreSheet({ view: v, open, onOpenChange }: { view: TableView; o
                 <tbody>
                   {rows.map((r, i) => (
                     <tr key={i} className="border-t border-white/[0.06]">
-                      <td className="px-3 py-2.5 text-muted-foreground">
+                      <td className="px-2 py-2 sm:px-3 text-muted-foreground">
                         <span className={cn(v.status === "playing" && i === v.rounds.length && "font-bold text-gold")}>{i + 1}</span>
                         {r && <span className="ml-1.5 text-xs">· {r.winnerId ? `${name(r.winnerId)} won` : "called off"}</span>}
                       </td>
                       {ids.map((id) => (
-                        <td key={id} className={cn("px-3 py-2.5 text-right font-semibold tabular-nums", id === v.you && "bg-gold/[0.07]", r ? tone(r.points[id] ?? 0) : "text-white/25")}>
+                        <td key={id} className={cn("px-2 py-2 sm:px-3 text-right font-semibold tabular-nums", id === v.you && "bg-gold/[0.07]", r ? tone(r.points[id] ?? 0) : "text-white/25")}>
                           {r ? signed(r.points[id] ?? 0) : "—"}
                         </td>
                       ))}
                     </tr>
                   ))}
                   <tr className="border-t border-white/10 text-base">
-                    <td className="px-3 py-3 font-extrabold">Total</td>
+                    <td className="px-2 py-2.5 sm:px-3 font-extrabold">Total</td>
                     {ids.map((id) => (
-                      <td key={id} className={cn("px-3 py-3 text-right font-extrabold tabular-nums", id === v.you && "bg-gold/[0.07]", tone(t[id]))}>
+                      <td key={id} className={cn("px-2 py-2.5 sm:px-3 text-right font-extrabold tabular-nums", id === v.you && "bg-gold/[0.07]", tone(t[id]))}>
                         {signed(t[id])}
                       </td>
                     ))}
                   </tr>
                   <tr className="border-t border-white/[0.06]">
-                    <td className="px-3 py-2.5 text-xs text-muted-foreground">{cur}</td>
+                    <td className="px-2 py-2 sm:px-3 text-xs text-muted-foreground">{cur}</td>
                     {ids.map((id) => (
-                      <td key={id} className={cn("px-3 py-2.5 text-right text-xs font-bold tabular-nums", id === v.you && "bg-gold/[0.07]", tone(net[id] ?? 0))}>
+                      <td key={id} className={cn("px-2 py-2 sm:px-3 text-right text-xs font-bold tabular-nums", id === v.you && "bg-gold/[0.07]", tone(net[id] ?? 0))}>
                         {formatMoney(net[id] ?? 0, cur)}
                       </td>
                     ))}

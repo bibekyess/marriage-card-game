@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { PlayingCard } from "./PlayingCard";
+import { cardLabel } from "../../../shared/cards";
 
 interface Props {
   cw: number;
@@ -11,6 +12,8 @@ interface Props {
   canDraw: boolean;
   /** Taking the top discard is allowed right now (pick-up rule). */
   canPickDiscard: boolean;
+  /** Who threw the top card (shown under the pile). */
+  thrownBy?: string | null;
   onDraw(from: "stock" | "discard"): void;
 }
 
@@ -21,7 +24,7 @@ function Caption({ children, active }: { children: React.ReactNode; active?: boo
 }
 
 /** Stock, maal and discard pile in the middle of the felt. */
-export function Piles({ cw, stockCount, discardTop, discardUnder, maal, maalHidden, canDraw, canPickDiscard, onDraw }: Props) {
+export function Piles({ cw, stockCount, discardTop, discardUnder, maal, maalHidden, canDraw, canPickDiscard, thrownBy, onDraw }: Props) {
   const canPick = canPickDiscard && !!discardTop;
   return (
     <div className="flex items-end justify-center gap-[clamp(14px,4vw,40px)]">
@@ -54,7 +57,7 @@ export function Piles({ cw, stockCount, discardTop, discardUnder, maal, maalHidd
 
       <button
         type="button"
-        className={cn("flex flex-col items-center outline-none", canPick ? "cursor-pointer" : "cursor-default")}
+        className={cn("relative flex flex-col items-center outline-none", canPick ? "cursor-pointer" : "cursor-default")}
         onClick={() => canPick && onDraw("discard")}
         disabled={!canPick}
         title={canDraw && discardTop && !canPick ? "You can pick this up only if it completes a pure set" : undefined}
@@ -80,6 +83,9 @@ export function Piles({ cw, stockCount, discardTop, discardUnder, maal, maalHidd
           )}
         </div>
         <Caption active={canPick}>Discard</Caption>
+        <span className="pointer-events-none absolute -bottom-4 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold text-white/60" aria-live="polite">
+          {thrownBy && discardTop ? `${thrownBy} threw ${cardLabel(discardTop)}` : ""}
+        </span>
       </button>
     </div>
   );
