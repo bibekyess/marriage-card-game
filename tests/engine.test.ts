@@ -195,3 +195,103 @@ describe("table", () => {
     expect(() => table.discard(seat.id, picked)).toThrow(/throw back/);
   });
 });
+
+describe("review fixes", () => {
+  const twoPlayer = (settings = {}) => {
+    const { table, seat } = Table.create("FIX", "Host", { restrictPickup: false, ...settings }, 0);
+    const other = table.join("Guest");
+    table.start(seat.id);
+    return { table, host: seat.id, guest: other.id };
+  };
+
+  it("rejects duplicate or partial card selections when showing", () => {
+    expect(findShow(["4H0", "5H0", "6H0"], ["4H0", "5H0", "6H0", "4H0", "5H0", "6H0", "4H0", "5H0", "6H0"])).toBeNull();
+    expect(findShow(["4H0", "5H0", "6H0", "9C0"], ["4H0", "5H0"])).toBeNull();
+    const pairs = ["AH0", "AH1"];
+    expect(findDubleeShow(pairs, Array(7).fill(pairs).flat())).toBeNull();
+    const { table, host } = twoPlayer();
+    table.draw(host, "stock");
+    const hand = table.s.game!.hands[host];
+    const dup = Array(9).fill(hand[0]);
+    expect(() => table.show(host, "pure", dup)).toThrow();
+    expect(table.s.game!.hands[host]).toHaveLength(22);
+  });
+
+  it("scores a winner's tunnel no matter how the hand is arranged", () => {
+    const maal = "2S0";
+    const a = ["9H0", "9D0", "9C0", "9C1", "9H1", "9S0", "9C2", "9D1", "9S1", "4H0", "5H0", "6H0", "KC1"];
+    const b = ["9C0", "9C1", "9C2", ...a.filter((c) => !c.startsWith("9C"))];
+    const scoreFor = (hand: string[]) => {
+      const { table, host } = twoPlayer();
+      const g = table.s.game!;
+      g.maal = maal;
+      g.seen[host] = "pure";
+      g.shown[host] = [["AD0", "2D0", "3D0"], ["7S0", "8S0", "9S2"], ["JH0", "QH0", "KH0"]];
+      g.hands[host] = [...hand];
+      g.phase = "discard";
+      table.declare(host);
+      return table.s.reveal!.players.find((p) => p.id === host)!.breakdown.tunnels;
+    };
+    expect(scoreFor(a)).toBe(1);
+    expect(scoreFor(b)).toBe(1);
+  });
+
+  it("keeps the deal rotating after someone leaves", () => {
+    const { table, seat } = Table.create("ROT", "A", {}, 0);
+    const b = table.join("B"), c = table.join("C");
+    table.start(seat.id); // round 1: C (last seat) deals
+    expect(table.s.seats[table.s.dealer].id).toBe(c.id);
+    table.s.status = "roundEnd";
+    table.start(seat.id); // round 2: A deals
+    expect(table.s.seats[table.s.dealer].id).toBe(seat.id);
+    table.s.status = "roundEnd";
+    table.removeSeat(seat.id, b.id);
+    table.start(seat.id); // round 3: B would have dealt but left → next seat (C)
+    expect(table.s.seats[table.s.dealer].id).toBe(c.id);
+  });
+
+  it("calls a round off when the stock keeps running out", () => {
+    const { table, host } = twoPlayer();
+    const g = table.s.game!;
+    g.reshuffles = 3;
+    g.stock = [];
+    table.draw(host, "stock");
+    expect(table.s.status).toBe("roundEnd");
+    expect(table.s.rounds.at(-1)!.winnerId).toBe("");
+    expect(Object.values(table.s.rounds.at(-1)!.points)).toEqual([0, 0]);
+  });
+
+  it("lets a bot take over when someone leaves mid-round, and hands over the host", () => {
+    const { table, host, guest } = twoPlayer();
+    table.setConnected(guest, true);
+    expect(table.leave(host)).toEqual({ removed: true });
+    expect(table.s.hostId).toBe(guest);
+    expect(table.s.seats[0].autoplay).toBe(true);
+    expect(table.nextStep()?.kind).toBe("bot");
+    table.s.status = "roundEnd";
+    table.addBot(guest);
+    table.start(guest);
+    expect(table.s.seats.map((s) => s.isBot)).toEqual([false, true]);
+    expect(table.s.seats[0].id).toBe(guest);
+  });
+
+  it("ignores hand arrangements that aren't real cards", () => {
+    const { table, host } = twoPlayer();
+    const hand = [...table.s.game!.hands[host]];
+    table.arrange(host, hand.map((c) => [c]) as any);
+    expect(table.s.game!.hands[host]).toEqual(hand);
+  });
+
+  it("timeout auto-play declares a finished hand", () => {
+    const { table, host } = twoPlayer();
+    const g = table.s.game!;
+    g.maal = "2S0";
+    g.seen[host] = "pure";
+    g.shown[host] = [["AD0", "2D0", "3D0"], ["7S0", "8S0", "9S2"], ["JH0", "QH0", "KH0"]];
+    g.hands[host] = ["9C0", "9C1", "9C2", "9H0", "9D0", "9S0", "4H0", "5H0", "6H0", "KC0", "KD0", "KS0"];
+    g.stock.push("3C1");
+    table.autoStep("timeout");
+    expect(table.s.status).toBe("roundEnd");
+    expect(table.s.reveal!.winnerId).toBe(host);
+  });
+});

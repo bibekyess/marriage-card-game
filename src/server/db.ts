@@ -9,21 +9,38 @@ export interface Store {
   loadActive(): Promise<TableState[]>;
   save(state: TableState): Promise<void>;
   remove(code: string): Promise<void>;
+  close(): Promise<void>;
 }
 
 export class MemoryStore implements Store {
   async init() {}
-  async loadActive() {
+  async loadActive(): Promise<TableState[]> {
     return [];
   }
   async save() {}
   async remove() {}
+  async close() {}
 }
 
 export class PgStore implements Store {
   pool: pg.Pool;
+  private lastPoolLog = 0;
   constructor(url: string) {
-    this.pool = new pg.Pool({ connectionString: url, max: 5 });
+    this.pool = new pg.Pool({
+      connectionString: url,
+      max: 5,
+      connectionTimeoutMillis: 5000,
+      query_timeout: 5000,
+      idleTimeoutMillis: 30_000,
+    });
+    // Idle clients can error when the database restarts; without a handler that kills the process.
+    this.pool.on("error", (e) => {
+      const now = Date.now();
+      if (now - this.lastPoolLog > 30_000) {
+        this.lastPoolLog = now;
+        console.error("postgres pool error", e.message);
+      }
+    });
   }
 
   async init() {
@@ -48,7 +65,7 @@ export class PgStore implements Store {
   }
 
   async loadActive() {
-    await this.pool.query(`DELETE FROM game_tables WHERE updated_at < now() - interval '14 days'`);
+    await this.pool.query(`DELETE FROM game_tables WHERE updated_at < now() - interval '3 days'`);
     const r = await this.pool.query(`SELECT state FROM game_tables`);
     return r.rows.map((x) => x.state as TableState);
   }
@@ -63,5 +80,9 @@ export class PgStore implements Store {
 
   async remove(code: string) {
     await this.pool.query(`DELETE FROM game_tables WHERE code = $1`, [code]);
+  }
+
+  async close() {
+    await this.pool.end();
   }
 }

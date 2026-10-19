@@ -1,0 +1,160 @@
+import { ArrowRight, Copy, Share2 } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Avatar } from "@/components/game/Avatar";
+import { roundLabel, settlement, signed, totals } from "@/lib/format";
+import { scoreImage, scoreText } from "@/lib/shareImage";
+import { cn } from "@/lib/utils";
+import type { TableView } from "../../shared/protocol";
+import { formatMoney } from "../../shared/settings";
+
+const tone = (n: number) => (n > 0 ? "text-emerald-400" : n < 0 ? "text-red-400" : "text-muted-foreground");
+
+async function shareScore(v: TableView) {
+  const text = scoreText(v);
+  try {
+    const blob = await scoreImage(v);
+    const file = new File([blob], `marriage-${v.code}.png`, { type: "image/png" });
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], text });
+      return;
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = file.name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    toast.success("Scorecard image saved");
+  } catch (e) {
+    if ((e as Error)?.name !== "AbortError") toast.error("Couldn't share the image.");
+  }
+}
+
+async function copyText(v: TableView) {
+  try {
+    await navigator.clipboard.writeText(scoreText(v));
+    toast.success("Score copied — paste it in the family chat");
+  } catch {
+    toast.error("Couldn't copy.");
+  }
+}
+
+export function ScoreSheet({ view: v, open, onOpenChange }: { view: TableView; open: boolean; onOpenChange(o: boolean): void }) {
+  const t = totals(v);
+  const ids = Object.keys(t);
+  const name = (id: string) => v.seats.find((s) => s.id === id)?.name ?? "Left";
+  const seat = (id: string) => v.seats.find((s) => s.id === id);
+  const { net, transfers } = settlement(v);
+  const cur = v.settings.currency;
+  const planned = v.settings.rounds || v.rounds.length;
+  const rows = Array.from({ length: Math.max(planned, v.rounds.length) }, (_, i) => v.rounds[i] ?? null);
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="bottom" className="mx-auto max-h-[92dvh] max-w-3xl overflow-y-auto rounded-t-2xl" data-testid="score-sheet">
+        <SheetHeader className="text-left">
+          <SheetTitle>{roundLabel(v)}</SheetTitle>
+          <SheetDescription>
+            {v.settings.pointRate} {cur} per point · {v.settings.unseenRule}
+          </SheetDescription>
+        </SheetHeader>
+        <Tabs defaultValue={v.status === "matchEnd" ? "settle" : "scores"} className="mt-4">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="scores">Scoreboard</TabsTrigger>
+            <TabsTrigger value="settle">Settle up</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="scores">
+            <div className="overflow-x-auto rounded-xl border border-white/[0.06]">
+              <table className="w-full min-w-[420px] text-sm">
+                <thead>
+                  <tr className="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+                    <th className="px-3 py-2.5 font-bold">Round</th>
+                    {ids.map((id) => (
+                      <th key={id} className={cn("px-3 py-2.5 text-right font-bold", id === v.you && "bg-gold/[0.07] text-gold")}>
+                        {id === v.you ? "You" : name(id)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr key={i} className="border-t border-white/[0.06]">
+                      <td className="px-3 py-2.5 text-muted-foreground">
+                        <span className={cn(v.status === "playing" && i === v.rounds.length && "font-bold text-gold")}>{i + 1}</span>
+                        {r && <span className="ml-1.5 text-xs">· {name(r.winnerId)} won</span>}
+                      </td>
+                      {ids.map((id) => (
+                        <td key={id} className={cn("px-3 py-2.5 text-right font-semibold tabular-nums", id === v.you && "bg-gold/[0.07]", r ? tone(r.points[id] ?? 0) : "text-white/25")}>
+                          {r ? signed(r.points[id] ?? 0) : "—"}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                  <tr className="border-t border-white/10 text-base">
+                    <td className="px-3 py-3 font-extrabold">Total</td>
+                    {ids.map((id) => (
+                      <td key={id} className={cn("px-3 py-3 text-right font-extrabold tabular-nums", id === v.you && "bg-gold/[0.07]", tone(t[id]))}>
+                        {signed(t[id])}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr className="border-t border-white/[0.06]">
+                    <td className="px-3 py-2.5 text-xs text-muted-foreground">{cur}</td>
+                    {ids.map((id) => (
+                      <td key={id} className={cn("px-3 py-2.5 text-right text-xs font-bold tabular-nums", id === v.you && "bg-gold/[0.07]", tone(net[id] ?? 0))}>
+                        {formatMoney(net[id] ?? 0, cur)}
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="settle" className="space-y-4">
+            <div className="grid gap-2 sm:grid-cols-2">
+              {[...ids].sort((a, b) => (net[b] ?? 0) - (net[a] ?? 0)).map((id) => (
+                <div key={id} className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-black/20 p-3">
+                  <Avatar name={name(id)} index={seat(id)?.avatar ?? 0} size={34} isBot={seat(id)?.isBot} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-bold">{name(id)}</div>
+                    <div className="text-xs text-muted-foreground">{signed(t[id])} pts</div>
+                  </div>
+                  <div className={cn("text-lg font-extrabold tabular-nums", tone(net[id] ?? 0))}>{formatMoney(net[id] ?? 0, cur)}</div>
+                </div>
+              ))}
+            </div>
+            <div className="rounded-xl border border-gold/25 bg-gold/[0.06] p-4">
+              <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-gold">Who pays whom</h3>
+              {transfers.length ? (
+                <ul className="space-y-2" data-testid="transfers">
+                  {transfers.map((tr, i) => (
+                    <li key={i} className="flex items-center gap-2 text-sm">
+                      <span className="font-bold">{name(tr.from)}</span>
+                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-bold">{name(tr.to)}</span>
+                      <span className="ml-auto font-extrabold tabular-nums text-gold">{formatMoney(tr.amount, cur)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">Nobody owes anything yet.</p>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="gold" onClick={() => shareScore(v)}>
+                <Share2 /> Share scorecard
+              </Button>
+              <Button variant="outline" onClick={() => copyText(v)}>
+                <Copy /> Copy text
+              </Button>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </SheetContent>
+    </Sheet>
+  );
+}

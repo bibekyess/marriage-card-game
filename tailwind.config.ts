@@ -1,0 +1,57 @@
+import type { Config } from "tailwindcss";
+import { fontFamily } from "tailwindcss/defaultTheme";
+import animate from "tailwindcss-animate";
+
+const config: Config = {
+  darkMode: ["class"],
+  content: ["./src/client/**/*.{ts,tsx,html}"],
+  theme: {
+    container: { center: true, padding: "1rem", screens: { "2xl": "1400px" } },
+    extend: {
+      fontFamily: { sans: ["Plus Jakarta Sans", ...fontFamily.sans] },
+      colors: {
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        primary: { DEFAULT: "hsl(var(--primary))", foreground: "hsl(var(--primary-foreground))" },
+        secondary: { DEFAULT: "hsl(var(--secondary))", foreground: "hsl(var(--secondary-foreground))" },
+        destructive: { DEFAULT: "hsl(var(--destructive))", foreground: "hsl(var(--destructive-foreground))" },
+        muted: { DEFAULT: "hsl(var(--muted))", foreground: "hsl(var(--muted-foreground))" },
+        accent: { DEFAULT: "hsl(var(--accent))", foreground: "hsl(var(--accent-foreground))" },
+        popover: { DEFAULT: "hsl(var(--popover))", foreground: "hsl(var(--popover-foreground))" },
+        card: { DEFAULT: "hsl(var(--card))", foreground: "hsl(var(--card-foreground))" },
+        felt: { DEFAULT: "#0e5a3f", dark: "#08382a", light: "#17795a" },
+        gold: { DEFAULT: "#f5b83d", light: "#f7c45a", dark: "#eba52a" },
+      },
+      boxShadow: {
+        card: "0 1px 1px rgba(0,0,0,.25), 0 3px 8px rgba(0,0,0,.28)",
+        lift: "0 10px 24px rgba(0,0,0,.45), 0 2px 4px rgba(0,0,0,.3)",
+        panel: "0 20px 50px -20px rgba(0,0,0,.7)",
+      },
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
+      },
+      keyframes: {
+        "accordion-down": { from: { height: "0" }, to: { height: "var(--radix-accordion-content-height)" } },
+        "accordion-up": { from: { height: "var(--radix-accordion-content-height)" }, to: { height: "0" } },
+        "pulse-ring": {
+          "0%": { boxShadow: "0 0 0 0 hsl(var(--ring) / 0.45)" },
+          "70%": { boxShadow: "0 0 0 8px hsl(var(--ring) / 0)" },
+          "100%": { boxShadow: "0 0 0 0 hsl(var(--ring) / 0)" },
+        },
+      },
+      animation: {
+        "accordion-down": "accordion-down 0.2s ease-out",
+        "accordion-up": "accordion-up 0.2s ease-out",
+        "pulse-ring": "pulse-ring 1.8s ease-out infinite",
+      },
+    },
+  },
+  plugins: [animate],
+};
+
+export default config;

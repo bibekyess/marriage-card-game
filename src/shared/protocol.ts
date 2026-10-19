@@ -20,7 +20,7 @@ export interface SeatView {
 export interface RoundRow {
   round: number;
   dealerId: string;
-  winnerId: string;
+  winnerId: string; // "" when the round was called off
   route: Route;
   points: Record<string, number>;
   seen: Record<string, boolean>;

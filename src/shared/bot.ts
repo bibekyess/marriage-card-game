@@ -30,7 +30,8 @@ const rankGap = (a: number, b: number) =>
 /** Whether a bot holding this hand should chase dublees instead of pure sets. */
 export function prefersDublee(hand: CardId[], dubleeAllowed: boolean): boolean {
   if (!dubleeAllowed) return false;
-  return findDublees(hand).length >= 5 && findPureSets(hand, 3).length < 2;
+  const pairs = findDublees(hand).length;
+  return pairs >= 6 || (pairs >= 5 && findPureSets(hand, 3).length < 2);
 }
 
 /** How much each card is worth keeping. Higher = keep. */
@@ -108,7 +109,7 @@ export function chooseDiscard(v: BotView): CardId {
       best = c;
     }
   }
-  return best ?? v.hand[v.hand.length - 1];
+  return best ?? v.hand.find((c) => c !== v.picked) ?? v.hand[0];
 }
 
 export type BotPlan =

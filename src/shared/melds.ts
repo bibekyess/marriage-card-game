@@ -78,36 +78,84 @@ function* combos(n: number, k: number, start = 0, acc: number[] = []): Generator
 }
 
 /**
- * Split all `ids` into groups that each satisfy `ok`. Groups are 3..5 cards: any longer
- * valid run can always be split into shorter valid runs, so this loses nothing.
+ * Splits hands into groups that each satisfy `ok`. Groups are 3..5 cards: any longer valid
+ * run can be split into shorter valid runs, so nothing is lost.
+ *
+ * Whether a group is valid depends only on its card faces (wild cards are interchangeable),
+ * so the search is memoised on `keyOf` and equivalent groups are tried once. One partitioner
+ * can be reused for several hands (e.g. every discard candidate) and shares its memo.
  */
-export function partition(ids: CardId[], ok: (g: CardId[]) => boolean, maxSize = 5): CardId[][] | null {
-  const memo = new Map<string, CardId[][] | null>();
-  const rec = (rest: CardId[]): CardId[][] | null => {
-    if (!rest.length) return [];
-    if (rest.length < 3) return null;
-    const key = [...rest].sort().join(",");
-    if (memo.has(key)) return memo.get(key)!;
+export function partitioner(ok: (g: CardId[]) => boolean, keyOf: (id: CardId) => string = faceKey, maxSize = 5) {
+  const memo = new Map<string, boolean>();
+  const okMemo = new Map<string, boolean>();
+  const key = (cs: CardId[]) => cs.map(keyOf).sort().join(",");
+  const valid = (g: CardId[]) => {
+    const k = key(g);
+    let v = okMemo.get(k);
+    if (v === undefined) okMemo.set(k, (v = ok(g)));
+    return v;
+  };
+
+  /** Candidate first groups for `rest`, each with the cards left over. */
+  function* firstGroups(rest: CardId[]): Generator<[CardId[], CardId[]]> {
     const [first, ...others] = rest;
-    let res: CardId[][] | null = null;
-    outer: for (let k = 2; k <= Math.min(maxSize - 1, others.length); k++) {
-      if (others.length - k !== 0 && others.length - k < 3) continue;
+    const tried = new Set<string>();
+    for (let k = 2; k <= Math.min(maxSize - 1, others.length); k++) {
+      const left = others.length - k;
+      if (left !== 0 && left < 3) continue;
       for (const idx of combos(others.length, k)) {
         const g = [first, ...idx.map((i) => others[i])];
-        if (!ok(g)) continue;
+        const gk = key(g);
+        if (tried.has(gk)) continue;
+        tried.add(gk);
+        if (!valid(g)) continue;
         const used = new Set(idx);
-        const sub = rec(others.filter((_, i) => !used.has(i)));
-        if (sub) {
-          res = [g, ...sub];
-          break outer;
+        yield [g, others.filter((_, i) => !used.has(i))];
+      }
+    }
+  }
+
+  const feasible = (rest: CardId[]): boolean => {
+    if (!rest.length) return true;
+    if (rest.length < 3) return false;
+    const k = key(rest);
+    const hit = memo.get(k);
+    if (hit !== undefined) return hit;
+    let res = false;
+    for (const [, left] of firstGroups(rest)) {
+      if (feasible(left)) {
+        res = true;
+        break;
+      }
+    }
+    memo.set(k, res);
+    return res;
+  };
+
+  const partition = (ids: CardId[]): CardId[][] | null => {
+    if (!feasible(ids)) return null;
+    const out: CardId[][] = [];
+    let rest = ids;
+    while (rest.length) {
+      for (const [g, left] of firstGroups(rest)) {
+        if (feasible(left)) {
+          out.push(g);
+          rest = left;
+          break;
         }
       }
     }
-    memo.set(key, res);
-    return res;
+    return out;
   };
-  return rec(ids);
+
+  return { feasible, partition };
 }
+
+export function partition(ids: CardId[], ok: (g: CardId[]) => boolean, maxSize = 5): CardId[][] | null {
+  return partitioner(ok, faceKey, maxSize).partition(ids);
+}
+
+const hasDuplicates = (ids: CardId[]) => new Set(ids).size !== ids.length;
 
 /** All 3-card pure sets available in a hand. */
 export function pureTriples(hand: CardId[]): CardId[][] {
@@ -143,11 +191,15 @@ export function findPureSets(hand: CardId[], want = 3): CardId[][] {
   return best;
 }
 
-/** Find 3 pure sets to show. If the player selected cards, only those are used. */
+/**
+ * Find 3 pure sets to show. A player may pick the 9 cards themselves; otherwise the best
+ * 3 sets are found automatically.
+ */
 export function findShow(hand: CardId[], selected: CardId[] = []): CardId[][] | null {
-  if (selected.length >= 9) {
-    const g = partition(selected, isPure);
-    return g && g.length >= 3 ? g : null;
+  if (selected.length) {
+    if (selected.length !== 9 || hasDuplicates(selected) || !selected.every((c) => hand.includes(c))) return null;
+    const g = partition(selected, isPure, 3);
+    return g && g.length === 3 ? g : null;
   }
   const sets = findPureSets(hand, 3);
   return sets.length >= 3 ? sets : null;
@@ -166,7 +218,8 @@ export function findDublees(hand: CardId[]): CardId[][] {
 }
 
 export function findDubleeShow(hand: CardId[], selected: CardId[] = [], need = 7): CardId[][] | null {
-  if (selected.length === need * 2) {
+  if (selected.length) {
+    if (selected.length !== need * 2 || hasDuplicates(selected) || !selected.every((c) => hand.includes(c))) return null;
     const d = findDublees(selected);
     return d.length === need ? d : null;
   }
@@ -185,11 +238,15 @@ export function findFinish(
   maal: CardId | null,
   opts: { preferDiscard?: CardId; forbidden?: CardId | null } = {},
 ): Finish | null {
+  if (hasDuplicates(hand)) return null;
+  const keyOf = (c: CardId) => (isWild(c, maal) ? "W" : faceKey(c));
+  const p = partitioner((g) => isMeld(g, maal), keyOf);
   const cands = opts.preferDiscard ? [opts.preferDiscard] : hand;
+  const tried = new Set<string>();
   for (const d of cands) {
-    if (d === opts.forbidden) continue;
-    const rest = hand.filter((x) => x !== d);
-    const groups = partition(rest, (g) => isMeld(g, maal));
+    if (d === opts.forbidden || tried.has(keyOf(d))) continue;
+    tried.add(keyOf(d));
+    const groups = p.partition(hand.filter((x) => x !== d));
     if (groups) return { discard: d, groups };
   }
   return null;

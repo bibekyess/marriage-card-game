@@ -18,6 +18,8 @@ export interface SeatState {
   isBot: boolean;
   token: string;
   autoplay: boolean;
+  /** Left mid-round: a bot plays for them and the seat goes at the next deal. */
+  left?: boolean;
 }
 
 export interface RoundState {
@@ -32,6 +34,7 @@ export interface RoundState {
   seen: Record<string, Route>;
   shown: Record<string, CardId[][]>;
   deadline: number | null;
+  reshuffles?: number;
 }
 
 export interface TableState {
@@ -44,6 +47,7 @@ export interface TableState {
   status: TableStatus;
   round: number;
   dealer: number;
+  dealerId?: string;
   seats: SeatState[];
   spectators: { id: string; name: string; token: string }[];
   game: RoundState | null;
@@ -54,10 +58,17 @@ export interface TableState {
 
 export const BOT_NAMES = ["Anisha", "Rohan", "Maya", "Sujan", "Kabir", "Pema"];
 const OFFLINE_AUTOPLAY_MS = 45_000;
+const HOST_HANDOVER_MS = 3 * 60_000;
+const MAX_SPECTATORS = 10;
+/** After this many stock reshuffles the round is called off (nobody can finish). */
+const MAX_RESHUFFLES = 3;
 
 export const newId = (bytes = 6) => randomBytes(bytes).toString("base64url");
 export const cleanName = (n: unknown) =>
-  (typeof n === "string" ? n : "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 18) || "Player";
+  Array.from((typeof n === "string" ? n : "").replace(/[\p{Cc}\p{Cf}\u2028\u2029]/gu, "").replace(/\s+/g, " ").trim())
+    .slice(0, 18)
+    .join("")
+    .trim() || "Player";
 
 export type NextStep = { kind: "bot" | "timeout"; at: number } | null;
 
@@ -146,6 +157,7 @@ export class Table {
       this.s.seats.push({ id, name: nm, avatar: this.nextAvatar(), isBot: false, token, autoplay: false });
       this.log(`${nm} joined the table.`);
     } else {
+      if (this.s.spectators.length >= MAX_SPECTATORS) fail("This table is full.");
       this.s.spectators.push({ id, name: nm, token });
       this.log(`${nm} is watching${this.s.seats.length >= MAX_PLAYERS ? " (table is full)" : " and will join next round"}.`);
     }
@@ -173,9 +185,53 @@ export class Table {
     } else this.s.spectators = this.s.spectators.filter((x) => x.id !== id);
   }
 
-  rename(id: string, name: string) {
-    const seat = this.seat(id) || this.s.spectators.find((x) => x.id === id);
-    if (seat) seat.name = cleanName(name);
+  /** Someone pressed "Leave". Returns whether their seat is gone. */
+  leave(id: string): { removed: boolean } {
+    if (this.s.spectators.some((x) => x.id === id)) {
+      this.s.spectators = this.s.spectators.filter((x) => x.id !== id);
+      return { removed: true };
+    }
+    const seat = this.seat(id);
+    if (!seat || seat.isBot) return { removed: false };
+    if (this.s.hostId === id) this.handOverHost(id);
+    if (this.s.status === "playing") {
+      seat.autoplay = true;
+      seat.left = true;
+      this.log(`${seat.name} left — a bot is playing their cards.`);
+      return { removed: true };
+    }
+    this.s.seats = this.s.seats.filter((x) => x.id !== id);
+    this.log(`${seat.name} left the table.`);
+    return { removed: true };
+  }
+
+  /** Give the host role to another person, preferring someone online. */
+  private handOverHost(from: string) {
+    const humans = this.s.seats.filter((x) => !x.isBot && x.id !== from && !x.left);
+    const next = humans.find((x) => this.connected.has(x.id)) ?? humans[0];
+    if (!next) return false;
+    this.s.hostId = next.id;
+    this.log(`${next.name} is now the host.`);
+    return true;
+  }
+
+  /** If the host has been away a while between rounds, let someone else run the table. */
+  maybeTransferHost(now = Date.now()): boolean {
+    if (this.s.status === "playing" || this.connected.has(this.s.hostId)) return false;
+    const since = this.offlineSince.get(this.s.hostId);
+    if (since === undefined || now - since < HOST_HANDOVER_MS) return false;
+    if (!this.s.seats.some((x) => !x.isBot && x.id !== this.s.hostId && this.connected.has(x.id))) return false;
+    return this.handOverHost(this.s.hostId);
+  }
+
+  hasConnectedHumans() {
+    return [...this.connected].some((id) => this.s.seats.some((x) => x.id === id && !x.isBot) || this.s.spectators.some((x) => x.id === id));
+  }
+
+  /** After a server restart, give the player whose turn it is time to reconnect. */
+  extendDeadline(graceMs: number) {
+    const g = this.s.game;
+    if (g?.deadline) g.deadline = Math.max(g.deadline, Date.now() + graceMs);
   }
 
   setAutoplay(by: string, id: string, on: boolean) {
@@ -208,6 +264,7 @@ export class Table {
     this.requireHost(by);
     if (this.s.status === "playing") fail("A round is already being played.");
     if (this.s.status === "matchEnd") this.newMatch(by);
+    this.s.seats = this.s.seats.filter((x) => !x.left);
     // Seat anyone who was waiting, if there's room.
     while (this.s.spectators.length && this.s.seats.length < MAX_PLAYERS) {
       const sp = this.s.spectators.shift()!;
@@ -240,7 +297,11 @@ export class Table {
     const n = this.s.seats.length;
     this.s.round += 1;
     // Round 1: the last seat deals, so the first seat plays first. Then the deal moves round the table.
-    this.s.dealer = (n - 1 + this.s.round - 1) % n;
+    // If the previous dealer has left, the seat that moved into their place deals.
+    const prev = this.s.dealerId ? this.s.seats.findIndex((x) => x.id === this.s.dealerId) : -1;
+    if (this.s.round === 1 || this.s.dealer === undefined) this.s.dealer = n - 1;
+    else this.s.dealer = prev >= 0 ? (prev + 1) % n : this.s.dealer % n;
+    this.s.dealerId = this.s.seats[this.s.dealer].id;
     const stock = shuffle(fullDeck(), rand);
     const hands: Record<string, CardId[]> = {};
     for (const seat of this.s.seats) hands[seat.id] = stock.splice(0, HAND_SIZE);
@@ -284,7 +345,9 @@ export class Table {
       g.picked = c;
       this.log(`${this.nameOf(id)} picked up ${cardLabel(c)}.`);
     } else {
+      if (!g.stock.length && (g.reshuffles ?? 0) >= MAX_RESHUFFLES) return this.voidRound();
       if (!g.stock.length) {
+        g.reshuffles = (g.reshuffles ?? 0) + 1;
         const top = g.discard.pop()!;
         g.stock = shuffle(g.discard);
         g.discard = [top];
@@ -339,7 +402,7 @@ export class Table {
     this.log(`${this.nameOf(id)} showed ${route === "dublee" ? "7 dublees" : "3 pure sets"} and saw the maal.`);
   }
 
-  declare(id: string, preferDiscard?: CardId) {
+  declare(id: string, preferDiscard?: CardId): void {
     const g = this.requireTurn(id, "discard");
     const route = g.seen[id] ?? fail("Show your sets and see the maal before declaring.");
     const hand = g.hands[id];
@@ -362,11 +425,12 @@ export class Table {
       for (const c of hand) by.set(faceKey(c), [...(by.get(faceKey(c)) || []), c]);
       return [...by.values()].filter((x) => x.length >= 3).map((x) => x.slice(0, 3));
     };
+    // Tunnels score whether shown or still held at the end, for everyone alike
+    // (so the winner's bonus never depends on how the cards happen to be arranged).
     const inputs = this.s.seats.map((seat) => {
       const hand = g.hands[seat.id];
       const shown = g.shown[seat.id] || [];
-      const extra = seat.id === winnerId && route === "pure" ? f.groups : g.seen[seat.id] === "pure" ? tunnelsInHand(hand) : [];
-      return { id: seat.id, seen: !!g.seen[seat.id], cards: [...hand, ...shown.flat()], shown: [...shown, ...extra] };
+      return { id: seat.id, seen: !!g.seen[seat.id], cards: [...hand, ...shown.flat()], shown: [...shown, ...tunnelsInHand(hand)] };
     });
     const rows = scoreRound(inputs, winnerId, g.maal, this.s.settings, route === "dublee");
     const points: Record<string, number> = {};
@@ -405,9 +469,39 @@ export class Table {
     if (last) this.log("That was the last round. Time to settle up!");
   }
 
+  /** Called when the stock has run out too many times: nobody wins, nobody pays. */
+  private voidRound() {
+    const g = this.g;
+    const points = Object.fromEntries(this.s.seats.map((x) => [x.id, 0]));
+    const seen = Object.fromEntries(this.s.seats.map((x) => [x.id, !!g.seen[x.id]]));
+    this.s.rounds.push({ round: this.s.round, dealerId: this.s.seats[this.s.dealer].id, winnerId: "", route: "pure", points, seen, maal: g.maal });
+    const empty = { tiplu: 0, poplu: 0, jhiplu: 0, alter: 0, marriages: 0, tunnels: 0, points: 0 };
+    this.s.reveal = {
+      winnerId: "",
+      route: "pure",
+      maal: g.maal,
+      discard: "",
+      players: this.s.seats.map((x) => ({
+        id: x.id,
+        seen: !!g.seen[x.id],
+        shown: g.shown[x.id] || [],
+        groups: [],
+        hand: g.hands[x.id],
+        maal: 0,
+        rawMaal: 0,
+        breakdown: empty,
+        points: 0,
+      })),
+    };
+    this.s.game = null;
+    const last = this.s.settings.rounds > 0 && this.s.round >= this.s.settings.rounds;
+    this.s.status = last ? "matchEnd" : "roundEnd";
+    this.log(`Round ${this.s.round} was called off — the stock ran out ${MAX_RESHUFFLES} times. No points.`);
+  }
+
   arrange(id: string, order: CardId[]) {
     const g = this.s.game;
-    if (!g || !g.hands[id] || !Array.isArray(order)) return;
+    if (!g || !g.hands[id] || !Array.isArray(order) || !order.every(isCardId)) return;
     const hand = g.hands[id];
     if (order.length !== hand.length) return;
     const a = [...hand].sort().join(), b = [...order].sort().join();
@@ -450,8 +544,12 @@ export class Table {
     const seat = this.s.seats[g.turn];
     const id = seat.id;
     if (kind === "timeout") {
-      // Human ran out of time (or went offline): draw from stock, throw the weakest card.
+      // Human ran out of time (or went offline): draw from stock, then declare if the hand
+      // is already complete, otherwise throw the weakest card.
       if (g.phase === "draw") this.draw(id, "stock");
+      if (this.s.status !== "playing") return; // the round was called off
+      const plan = g.seen[id] ? choosePlay(this.botView(id)) : null;
+      if (plan?.kind === "declare") return this.declare(id, plan.finish.discard);
       this.discard(id, chooseDiscard(this.botView(id)));
       this.log(`${seat.name} ran out of time — auto-played.`);
       return;
