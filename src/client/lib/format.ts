@@ -23,7 +23,7 @@ export function settlement(v: TableView): { net: Record<string, number>; transfe
 }
 
 /** Display name for anyone who played this match, even if they've left. */
-export const nameOf = (v: TableView, id: string) => (id ? v.names[id] ?? v.seats.find((s) => s.id === id)?.name ?? "Player" : "—");
+export const nameOf = (v: TableView, id: string) => (id ? v.names?.[id] ?? v.seats.find((s) => s.id === id)?.name ?? "Player" : "—");
 
 export const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${Math.abs(n)}` : "0");
 

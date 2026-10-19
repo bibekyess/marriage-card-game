@@ -52,8 +52,8 @@ export function Lobby({ view: v }: { view: TableView }) {
   };
 
   return (
-    <div className="app-bg min-h-full overflow-y-auto">
-      <div className="mx-auto flex min-h-full max-w-3xl flex-col gap-5 px-4 py-6 sm:px-6">
+    <div className="app-bg h-full overflow-y-auto">
+      <div className="mx-auto flex min-h-full max-w-5xl flex-col gap-4 px-4 pb-24 pt-4 sm:px-6 sm:pt-6">
         <header className="flex items-center justify-between">
           <Button
             variant="ghost"
@@ -68,18 +68,37 @@ export function Lobby({ view: v }: { view: TableView }) {
           <Badge variant="muted">{v.rounds.length ? `${v.rounds.length} rounds played` : "Waiting for players"}</Badge>
         </header>
 
-        <section className="surface flex flex-col items-center gap-3 p-6 text-center">
+        <div className="grid flex-1 gap-4 sm:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] sm:items-start">
+        <div className="grid gap-4">
+        <section className="surface flex flex-col items-center gap-3 p-5 text-center sm:p-6">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">Table code</p>
           <button onClick={copyCode} className="group flex items-center gap-3" aria-label="Copy table code">
-            <span className="gold-text text-5xl font-extrabold tracking-[0.25em] sm:text-6xl">{v.code}</span>
+            <span className="gold-text pl-[0.25em] text-5xl font-extrabold tracking-[0.25em] sm:text-6xl">{v.code}</span>
             {copied ? <Check className="h-5 w-5 text-emerald-400" /> : <Copy className="h-5 w-5 text-muted-foreground group-hover:text-foreground" />}
           </button>
-          <p className="max-w-sm text-sm text-muted-foreground">Share the link — family can join from any phone or computer.</p>
+          <p className="max-w-xs text-sm text-muted-foreground">Share the link — family can join from any phone or computer.</p>
           <Button variant="felt" onClick={() => shareInvite(v.code)}>
             <Share2 /> Invite players
           </Button>
         </section>
 
+        <section className="surface flex flex-wrap items-center justify-between gap-3 p-4">
+          <div className="min-w-0">
+            <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">House rules</div>
+            <div className="mt-0.5 text-sm">{rulesSummary(v.settings)}</div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setDraft(v.settings);
+              setEditing(true);
+            }}
+          >
+            <Settings2 /> {host ? "Edit rules" : "View rules"}
+          </Button>
+        </section>
+        </div>
         <section className="surface p-4 sm:p-5">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="font-bold">
@@ -120,31 +139,18 @@ export function Lobby({ view: v }: { view: TableView }) {
           </ul>
         </section>
 
-        <section className="surface flex flex-wrap items-center justify-between gap-3 p-4">
-          <div className="min-w-0">
-            <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">House rules</div>
-            <div className="mt-0.5 text-sm">{rulesSummary(v.settings)}</div>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setDraft(v.settings);
-              setEditing(true);
-            }}
-          >
-            <Settings2 /> {host ? "Edit rules" : "View rules"}
-          </Button>
-        </section>
 
-        <div className="sticky bottom-0 -mx-4 mt-auto border-t border-white/[0.06] bg-background/85 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0">
+        </div>
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-white/[0.06] bg-background/85 px-4 py-3 backdrop-blur safe-pb">
+          <div className="mx-auto max-w-5xl">
           {host ? (
-            <Button variant="gold" size="xl" className="w-full" disabled={v.seats.length < 2} onClick={() => run("start")}>
+            <Button variant="gold" size="lg" className="h-12 w-full text-base" disabled={v.seats.length < 2} onClick={() => run("start")}>
               <Play fill="currentColor" /> {v.seats.length < 2 ? "Waiting for a second player" : "Deal cards"}
             </Button>
           ) : (
             <p className="py-3 text-center text-sm text-muted-foreground">Waiting for {hostName} to deal…</p>
           )}
+          </div>
         </div>
       </div>
 

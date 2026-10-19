@@ -66,12 +66,15 @@ export function Piles({ cw, stockCount, discardTop, discardUnder, maal, maalHidd
         >
           {discardUnder && <PlayingCard id={discardUnder} width={cw} maal={maal} className="absolute left-[-3px] top-[2px] rotate-[-6deg] opacity-80" />}
           {discardTop ? (
-            <PlayingCard
-              id={discardTop}
-              width={cw}
-              maal={maal}
-              className={cn("relative rotate-[3deg] transition-transform", canPick && "ring-2 ring-gold/70 hover:-translate-y-1")}
-            />
+            // Keyed by card so every new throw lands with a little drop.
+            <div key={discardTop} className="relative rotate-[3deg] motion-safe:animate-card-drop">
+              <PlayingCard
+                id={discardTop}
+                width={cw}
+                maal={maal}
+                className={cn("transition-transform", canPick && "ring-2 ring-gold/70 hover:-translate-y-1")}
+              />
+            </div>
           ) : (
             <div className="rounded-lg border-2 border-dashed border-white/20" style={{ width: cw, height: cw * 1.42 }} />
           )}

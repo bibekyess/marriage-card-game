@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CardId } from "../../../shared/cards";
 import { PlayingCard } from "./PlayingCard";
+import { cn } from "@/lib/utils";
 
 interface Props {
   cards: CardId[];
@@ -44,6 +45,18 @@ export function Hand({ cards, maal, selected, drawn, cardWidth, onToggle, onReor
   }, []);
 
   const n = cards.length;
+  // Fan the hand in when a new round is dealt (a full fresh hand appears).
+  const [dealing, setDealing] = useState(false);
+  const prevCount = useRef(0);
+  useEffect(() => {
+    if (prevCount.current === 0 && n >= 21) {
+      setDealing(true);
+      const t = setTimeout(() => setDealing(false), 900);
+      prevCount.current = n;
+      return () => clearTimeout(t);
+    }
+    prevCount.current = n;
+  }, [n]);
   const layout = useMemo(() => {
     const oneRowStep = n > 1 ? Math.min(cw + 4, (width - cw) / (n - 1)) : 0;
     const rows = oneRowStep < cw * 0.42 && n > 12 ? 2 : 1;
@@ -141,7 +154,12 @@ export function Hand({ cards, maal, selected, drawn, cardWidth, onToggle, onReor
             aria-pressed={selected.has(id)}
             data-card={id}
           >
-            <PlayingCard id={id} width={cw} maal={maal} selected={selected.has(id)} className={dragging ? "shadow-lift" : ""} />
+            <div
+              className={cn(drawn === id || dealing ? "motion-safe:animate-card-in" : "")}
+              style={dealing ? { animationDelay: `${i * 22}ms` } : undefined}
+            >
+              <PlayingCard id={id} width={cw} maal={maal} selected={selected.has(id)} className={dragging ? "shadow-lift" : ""} />
+            </div>
             {drawn === id && (
               <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-gold px-1.5 py-[1px] text-[9px] font-extrabold uppercase tracking-wide text-[#2a1d00] shadow">
                 New

@@ -38,6 +38,14 @@ const config: Config = {
       keyframes: {
         "accordion-down": { from: { height: "0" }, to: { height: "var(--radix-accordion-content-height)" } },
         "accordion-up": { from: { height: "var(--radix-accordion-content-height)" }, to: { height: "0" } },
+        "card-in": {
+          from: { opacity: "0", transform: "translateY(28px) scale(.92)" },
+          to: { opacity: "1", transform: "none" },
+        },
+        "card-drop": {
+          from: { opacity: "0", transform: "translateY(-26px) rotate(-10deg) scale(1.06)" },
+          to: { opacity: "1", transform: "none" },
+        },
         "pulse-ring": {
           "0%": { boxShadow: "0 0 0 0 hsl(var(--ring) / 0.45)" },
           "70%": { boxShadow: "0 0 0 8px hsl(var(--ring) / 0)" },
@@ -48,6 +56,8 @@ const config: Config = {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "pulse-ring": "pulse-ring 1.8s ease-out infinite",
+        "card-in": "card-in .38s cubic-bezier(.2,.8,.2,1) both",
+        "card-drop": "card-drop .32s cubic-bezier(.2,.8,.2,1) both",
       },
     },
   },

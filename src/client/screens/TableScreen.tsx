@@ -146,6 +146,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   if (!playing) hint = v.status === "matchEnd" ? "Match over" : "Round over";
   else if (!seated)
     hint = `You're watching${v.seats.length >= MAX_PLAYERS ? " — the table is full" : " — you'll be dealt in next round"}. ${turnName}'s turn.`;
+  else if (me?.autoplay) hint = "A bot is playing for you — open the menu to take back control";
   else if (canDraw) hint = h.seen || !v.settings.restrictPickup ? "Your turn — draw from the stock or the discard pile" : "Your turn — draw a card (discard only if it completes a pure set)";
   else if (discardPhase) hint = h.canDeclare ? "You can finish! Tap Declare" : h.canShowPure || h.canShowDublee ? "You can show and see the maal" : "Throw a card — tap one, then Discard (or flick it up)";
   else hint = `${turnName} is playing…`;
@@ -317,7 +318,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
                 </Button>
               )}
               {discardPhase && (
-                <Button size={btn} variant={primary ? "felt" : "gold"} disabled={!one || one === v.picked} onClick={() => one && discard(one)} data-testid="discard-btn">
+                <Button size={btn} variant={!one || one === v.picked ? "secondary" : primary ? "felt" : "gold"} disabled={!one || one === v.picked} onClick={() => one && discard(one)} data-testid="discard-btn">
                   <ArrowUp /> {one && vp.w >= 400 ? `Discard ${cardLabel(one)}` : "Discard"}
                 </Button>
               )}

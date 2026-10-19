@@ -22,9 +22,9 @@ function Cards({ groups, loose, maal }: { groups: string[][]; loose: string[]; m
         </div>
       ))}
       {loose.length > 0 && (
-        <div className="flex p-[3px]">
+        <div className="flex max-w-full p-[3px]">
           {loose.map((c, j) => (
-            <PlayingCard key={c} id={c} width={26} maal={maal} style={{ marginLeft: j ? -11 : 0 }} />
+            <PlayingCard key={c} id={c} width={26} maal={maal} style={{ marginLeft: j ? -14 : 0 }} />
           ))}
         </div>
       )}
@@ -49,7 +49,7 @@ export function RoundResult({ view: v, open, onOpenChange, onScores }: { view: T
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[94dvh] overflow-y-auto sm:max-w-2xl" data-testid="round-result">
+      <DialogContent className="max-h-[94dvh] overflow-y-auto overflow-x-hidden sm:max-w-3xl" data-testid="round-result">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-b from-[#ffd36e] to-[#e9a224] text-[#2a1d00]">
@@ -62,10 +62,13 @@ export function RoundResult({ view: v, open, onOpenChange, onScores }: { view: T
               <DialogDescription>
                 {!r.winnerId
                   ? "The stock ran out too many times — no points this round."
-                  : `${r.route === "dublee" ? "Finished with 8 dublees" : "Finished with complete sets"} · threw ${cardLabel(r.discard)} · maal was ${cardLabel(r.maal)}`}
+                  : `${r.route === "dublee" ? "Finished with 8 dublees" : "Finished with complete sets"} · threw ${cardLabel(r.discard)}`}
               </DialogDescription>
             </div>
-            <PlayingCard id={r.maal} width={40} maal={r.maal} className="ml-auto" />
+          </div>
+          <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="font-semibold uppercase tracking-wider">Maal</span>
+            <PlayingCard id={r.maal} width={30} maal={r.maal} />
           </div>
         </DialogHeader>
 
@@ -73,8 +76,8 @@ export function RoundResult({ view: v, open, onOpenChange, onScores }: { view: T
           {rows.map((p) => {
             const s = seat(p.id);
             return (
-              <div key={p.id} className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center">
-                <div className="flex min-w-[150px] items-center gap-2.5">
+              <div key={p.id} className={cn("flex flex-col gap-2 p-3 sm:flex-row sm:items-center", p.id === r.winnerId && "bg-gold/[0.05]")}>
+                <div className="flex w-[150px] shrink-0 items-center gap-2.5">
                   <Avatar name={name(p.id)} index={s?.avatar ?? 0} size={32} isBot={s?.isBot} />
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5 truncate text-sm font-bold">
@@ -92,7 +95,7 @@ export function RoundResult({ view: v, open, onOpenChange, onScores }: { view: T
                 <div className="min-w-0 flex-1">
                   <Cards groups={[...p.shown, ...p.groups]} loose={p.hand} maal={r.maal} />
                 </div>
-                <div className="flex shrink-0 items-center gap-4 text-right sm:w-[150px] sm:justify-end">
+                <div className="grid shrink-0 grid-cols-3 gap-3 text-right sm:w-[190px]">
                   <div>
                     <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Maal</div>
                     <div className="text-sm font-bold tabular-nums">
