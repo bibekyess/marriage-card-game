@@ -38,6 +38,30 @@ test("play a turn, refresh, and keep the same seat and cards", async ({ page }) 
   expect(after).toEqual(before);
 });
 
+test("a quick flick up throws the card, even when the touch events arrive together", async ({ page }) => {
+  await startPractice(page, "3", "2");
+  // A dealt tunnela changes the hint, so wait for the stock to be drawable instead.
+  await expect(page.getByTestId("stock")).toBeEnabled({ timeout: 30_000 });
+  await page.getByTestId("stock").click();
+  await expect(page.getByTestId("discard-btn")).toBeVisible();
+  const cards = page.locator("[data-card]");
+  await expect(cards).toHaveCount(22);
+  // iOS often delivers down, move and up back to back, before React re-renders.
+  const thrown = await page.evaluate(() => {
+    const el = document.querySelector<HTMLElement>("[data-card]")!;
+    const r = el.getBoundingClientRect();
+    const x = r.left + 6, y = r.top + r.height / 2;
+    const fire = (type: string, cy: number) =>
+      el.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 7, pointerType: "touch", isPrimary: true, button: 0, clientX: x, clientY: cy }));
+    fire("pointerdown", y);
+    fire("pointermove", y - r.height);
+    fire("pointerup", y - r.height * 2);
+    return el.getAttribute("data-card");
+  });
+  await expect(cards).toHaveCount(21);
+  await expect(page.locator(`[data-card="${thrown}"]`)).toHaveCount(0);
+});
+
 test("a bot plays a whole match for me and the settlement shows who pays", async ({ page }) => {
   await startPractice(page, "1", "2");
   await page.getByRole("button", { name: "Menu" }).click();

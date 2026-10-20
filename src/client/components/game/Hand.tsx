@@ -30,6 +30,7 @@ interface Props {
 
 interface Drag {
   id: CardId;
+  pointerId: number;
   startX: number;
   startY: number;
   x: number;
@@ -112,55 +113,74 @@ export function Hand({ cards, groups = NO_GROUPS, onGroupTap, onUngroup, maal, s
     return { x: left + col * layout.step + ((gapsBefore[i] ?? 0) - (gapsBefore[first] ?? 0)) * gap, y: tagH + 12 + row * layout.rowGap };
   };
 
-  // Where the dragged card would land.
-  const target = useMemo(() => {
-    if (!drag?.moved) return -1;
+  // The order the hand would have if the dragged card were dropped where it is now.
+  const orderFor = (d: Drag | null) => {
+    if (!d?.moved) return cards;
     // Use where the dragged card actually is (its centre), not where the finger is.
-    const from = slot(cards.indexOf(drag.id));
-    const px = from.x + drag.x - drag.startX;
-    const py = from.y + drag.y - drag.startY + ch / 2;
+    const from = slot(cards.indexOf(d.id));
+    const px = from.x + d.x - d.startX;
+    const py = from.y + d.y - d.startY + ch / 2;
     const row = layout.rows === 2 && py > 12 + ch / 2 + layout.rowGap / 2 ? 1 : 0;
     const inRow = row === 0 ? Math.min(n, layout.perRow) : n - layout.perRow;
     const total = cw + (inRow - 1) * layout.step;
     const left = (width - total) / 2;
     const col = Math.max(0, Math.min(inRow - 1, Math.round((px - left) / (layout.step || 1))));
-    return Math.min(n - 1, row * layout.perRow + col);
-  }, [drag, layout, n, cw, ch, width, cards]);
-
-  const order = useMemo(() => {
-    if (!drag?.moved || target < 0) return cards;
-    const rest = cards.filter((c) => c !== drag.id);
-    rest.splice(target, 0, drag.id);
+    const rest = cards.filter((c) => c !== d.id);
+    rest.splice(Math.min(n - 1, row * layout.perRow + col), 0, d.id);
     return rest;
-  }, [cards, drag, target]);
+  };
+  const order = orderFor(drag);
+
+  // The live drag, read by the pointer handlers. A quick flick (iOS especially) can deliver
+  // down, move and up before React re-renders, so the handlers can't rely on `drag` state.
+  const live = useRef<Drag | null>(null);
+  const update = (d: Drag | null) => {
+    live.current = d;
+    setDrag(d);
+  };
 
   useEffect(() => {
-    if (drag && !cards.includes(drag.id)) setDrag(null);
+    if (drag && !cards.includes(drag.id)) update(null);
   }, [cards, drag]);
 
   const onDown = (e: React.PointerEvent, id: CardId) => {
-    if (e.button !== 0) return;
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    setDrag({ id, startX: e.clientX, startY: e.clientY, x: e.clientX, y: e.clientY, moved: false });
+    // Only the first finger drags; a new first touch replaces any drag whose "up" got lost.
+    if (e.button !== 0 || !e.isPrimary) return;
+    // Capture is a nice-to-have (touch already sticks to the card); never let it block the drag.
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {}
+    update({ id, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, x: e.clientX, y: e.clientY, moved: false });
   };
+  const follow = (d: Drag, e: React.PointerEvent): Drag => ({
+    ...d,
+    x: e.clientX,
+    y: e.clientY,
+    moved: d.moved || Math.hypot(e.clientX - d.startX, e.clientY - d.startY) > 8,
+  });
   const onMove = (e: React.PointerEvent) => {
-    if (!drag) return;
-    const moved = drag.moved || Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) > 8;
-    setDrag({ ...drag, x: e.clientX, y: e.clientY, moved });
+    const d = live.current;
+    if (d?.pointerId === e.pointerId) update(follow(d, e));
   };
   const onUp = (e: React.PointerEvent) => {
-    if (!drag) return;
-    const d = drag;
-    setDrag(null);
+    const prev = live.current;
+    if (prev?.pointerId !== e.pointerId) return;
+    const d = follow(prev, e);
+    update(null);
     if (!d.moved) return onToggle(d.id);
     // Throw only when the card is flicked clearly out of the hand, upwards.
     const top = ref.current?.getBoundingClientRect().top ?? 0;
     if (onSwipeUp && e.clientY < top - ch * 0.25 && Math.abs(e.clientX - d.startX) < cw * 3) return onSwipeUp(d.id);
-    if (order.join() !== cards.join()) onReorder(order, d.id);
+    const next = orderFor(d);
+    if (next.join() !== cards.join()) onReorder(next, d.id);
+  };
+  const onCancel = (e: React.PointerEvent) => {
+    if (live.current?.pointerId === e.pointerId) update(null);
   };
 
   return (
-    <div ref={ref} className="relative w-full touch-none" style={{ height: layout.height }} data-testid="hand">
+    // No text selection or long-press callout: on iOS either one cancels the drag mid-flick.
+    <div ref={ref} className="relative w-full touch-none select-none [-webkit-touch-callout:none]" style={{ height: layout.height }} data-testid="hand">
       {!drag?.moved &&
         groups.map((g) => {
           const idx = g.cards.map((c) => cards.indexOf(c)).filter((i) => i >= 0);
@@ -209,7 +229,7 @@ export function Hand({ cards, groups = NO_GROUPS, onGroupTap, onUngroup, maal, s
             onPointerDown={(e) => onDown(e, id)}
             onPointerMove={onMove}
             onPointerUp={onUp}
-            onPointerCancel={() => setDrag(null)}
+            onPointerCancel={onCancel}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
