@@ -98,11 +98,30 @@ export const PlayingCard = memo(function PlayingCard({ id, width = 56, maal, sel
       role="img"
     >
       <div className="absolute inset-0 rounded-[inherit] border border-black/10" />
-      <div className="absolute flex flex-col items-center leading-none" style={{ left: width * 0.07, top: width * 0.07 }}>
+      <div className="absolute z-10 flex flex-col items-center leading-none" style={{ left: width * 0.07, top: width * 0.07 }}>
         <span className="font-extrabold tracking-tight" style={{ fontSize: rankSize, letterSpacing: label === "10" ? -1 : 0 }}>
           {label}
         </span>
         <span style={{ fontSize: width * 0.3, marginTop: width * 0.02 }}>{sym}</span>
+        {kind && (
+          // Under the index, on the left edge: stays visible when the hand overlaps cards.
+          <span
+            className={cn(
+              "rounded-full font-extrabold shadow",
+              // Jokers are wild but score nothing: silver. Point cards: gold.
+              kind === "joker" ? "bg-gradient-to-b from-[#f1f3f6] to-[#b8bfca] text-[#2b3038]" : "bg-gradient-to-b from-[#ffd36e] to-[#e9a224] text-[#3b2a05]",
+            )}
+            style={{
+              marginTop: width * 0.04,
+              fontSize: Math.max(9, width * 0.2),
+              lineHeight: 1,
+              padding: `${width * 0.03}px ${width * 0.05}px`,
+            }}
+            title={MAAL_NAME[kind]}
+          >
+            {MAAL_TAG[kind]}
+          </span>
+        )}
       </div>
       {face ? (
         <div
@@ -124,25 +143,6 @@ export const PlayingCard = memo(function PlayingCard({ id, width = 56, maal, sel
       ) : (
         <span className="absolute leading-none" style={{ right: width * 0.1, bottom: width * 0.1, fontSize: width * 0.62 }}>
           {sym}
-        </span>
-      )}
-      {kind && (
-        <span
-          className={cn(
-            "absolute rounded-full font-extrabold shadow",
-            // Jokers are wild but score nothing: silver. Point cards: gold.
-            kind === "joker" ? "bg-gradient-to-b from-[#f1f3f6] to-[#b8bfca] text-[#2b3038]" : "bg-gradient-to-b from-[#ffd36e] to-[#e9a224] text-[#3b2a05]",
-          )}
-          style={{
-            right: width * 0.06,
-            top: width * 0.06,
-            fontSize: Math.max(9, width * 0.2),
-            lineHeight: 1,
-            padding: `${width * 0.04}px ${width * 0.07}px`,
-          }}
-          title={MAAL_NAME[kind]}
-        >
-          {MAAL_TAG[kind]}
         </span>
       )}
     </div>
