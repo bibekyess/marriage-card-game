@@ -10,6 +10,7 @@ import { ThrownDialog } from "@/components/game/ThrownDialog";
 import { PlayingCard } from "@/components/game/PlayingCard";
 import { TunnelTag } from "@/components/game/TunnelTag";
 import { Avatar } from "@/components/game/Avatar";
+import { RotatePrompt } from "@/components/game/RotatePrompt";
 import { FeltPattern, TableDecor, THEME_FELT } from "@/components/theme/decor";
 import { useTheme } from "@/lib/themes";
 import { canFullscreen, iPhoneInstallTip, toggleFullscreen, useFullscreen } from "@/lib/fullscreen";
@@ -651,6 +652,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
       <ScoreSheet view={v} open={scores} onOpenChange={setScores} />
       <ThrownDialog view={v} focus={thrownFor} onClose={() => setThrownFor(null)} />
       <MenuSheet view={v} open={menu} onOpenChange={setMenu} onScores={() => setScores(true)} />
+      <RotatePrompt portrait={!landscape} />
     </div>
   );
 }

@@ -57,7 +57,7 @@ export function toggleFullscreen() {
   return isFullscreen() ? exitFullscreen() : enterFullscreen();
 }
 
-const smallTouchScreen = () => {
+export const smallTouchScreen = () => {
   try {
     return matchMedia("(pointer: coarse)").matches && Math.min(screen.width, screen.height) < 600;
   } catch {

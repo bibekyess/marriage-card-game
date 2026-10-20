@@ -52,6 +52,11 @@ const config: Config = {
           "70%": { boxShadow: "0 0 0 8px hsl(var(--ring) / 0)" },
           "100%": { boxShadow: "0 0 0 0 hsl(var(--ring) / 0)" },
         },
+        "rotate-hint": {
+          "0%, 20%": { transform: "rotate(0deg)" },
+          "50%, 80%": { transform: "rotate(-90deg)" },
+          "100%": { transform: "rotate(0deg)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -59,6 +64,7 @@ const config: Config = {
         "pulse-ring": "pulse-ring 1.8s ease-out infinite",
         "card-in": "card-in .38s cubic-bezier(.2,.8,.2,1) both",
         "card-drop": "card-drop .32s cubic-bezier(.2,.8,.2,1) both",
+        "rotate-hint": "rotate-hint 2.4s ease-in-out infinite",
       },
     },
   },
