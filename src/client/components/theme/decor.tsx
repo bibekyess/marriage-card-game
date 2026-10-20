@@ -531,7 +531,7 @@ export const TableDecor = memo(function TableDecor({ theme, compact = false }: {
 
 const SCRIPT_FONT = '"Great Vibes", "Snell Roundhand", "Apple Chancery", "Palatino Linotype", Georgia, serif';
 
-export function FeltPattern({ theme }: { theme: ThemeId }) {
+export const FeltPattern = memo(function FeltPattern({ theme, hideWatermark = false }: { theme: ThemeId; hideWatermark?: boolean }) {
   const gid = sid(useId());
   if (theme === "classic") return null;
   const wrap = "absolute inset-0 overflow-hidden pointer-events-none";
@@ -602,12 +602,13 @@ export function FeltPattern({ theme }: { theme: ThemeId }) {
     );
   }
 
-  // glow
+  // glow: script watermark sits below the piles
+  if (hideWatermark) return null;
   return (
     <div aria-hidden="true" className={wrap}>
       <svg
         className="absolute left-0 w-full"
-        style={{ top: "50%", height: "36%" }}
+        style={{ top: "62%", height: "28%" }}
         viewBox="0 0 800 260"
         preserveAspectRatio="xMidYMid meet"
         aria-hidden="true"
@@ -621,7 +622,7 @@ export function FeltPattern({ theme }: { theme: ThemeId }) {
         </defs>
         <g
           fill={`url(#${gid}w)`}
-          opacity={0.35}
+          opacity={0.28}
           fontFamily={SCRIPT_FONT}
           textAnchor="middle"
           style={{ fontSize: 118 }}
@@ -632,13 +633,13 @@ export function FeltPattern({ theme }: { theme: ThemeId }) {
       </svg>
     </div>
   );
-}
+});
 
 /* ------------------------------------------------------------------ */
 /* Card back                                                            */
 /* ------------------------------------------------------------------ */
 
-export function CardBackArt({ theme }: { theme: ThemeId }) {
+function FullBack({ theme }: { theme: ThemeId }) {
   const id = sid(useId());
   const base = "absolute inset-0 w-full h-full pointer-events-none block";
   const common = { viewBox: "0 0 100 142", preserveAspectRatio: "xMidYMid slice", className: base, "aria-hidden": true as const };
@@ -671,25 +672,21 @@ export function CardBackArt({ theme }: { theme: ThemeId }) {
   }
 
   if (theme === "kite") {
-    const navy = "#1b2f5e";
+    const navy = "#143a73";
     return (
       <svg {...common}>
         <defs>
-          <linearGradient id={`${id}b`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#fff8e8" />
-            <stop offset="1" stopColor="#cfe7f6" />
-          </linearGradient>
-          <pattern id={`${id}p`} x="6" y="6" width="30" height="40" patternUnits="userSpaceOnUse">
-            <KiteMark x={8} y={12} s={9} rot={-12} c={["#ff8a1f", "#ffcb2e", "#e63946", "#ffcb2e"]} outline={navy} spar="rgba(255,255,255,.8)" ow={0.07} />
+          <pattern id={`${id}p`} x="12" y="12" width="30" height="40" patternUnits="userSpaceOnUse">
+            <KiteMark x={8} y={12} s={9} rot={-12} c={KITE_SETS[0]} outline={navy} spar="rgba(255,255,255,.8)" ow={0.07} />
             <path d="M7 21 q3 3 0 6" stroke={navy} strokeWidth="0.8" fill="none" strokeLinecap="round" />
             <KiteMark x={23} y={32} s={9} rot={14} c={["#14b2a6", "#ffffff", "#e63946", "#ff8a1f"]} outline={navy} spar="rgba(255,255,255,.8)" ow={0.07} />
             <path d="M24 41 q3 3 0 6" stroke={navy} strokeWidth="0.8" fill="none" strokeLinecap="round" />
           </pattern>
         </defs>
-        <rect width="100" height="142" fill={`url(#${id}b)`} />
-        <rect x="6" y="6" width="88" height="130" rx="3" fill={`url(#${id}p)`} />
-        <rect x="6" y="6" width="88" height="130" rx="3" fill="none" stroke={navy} strokeOpacity="0.55" strokeWidth="0.8" />
-        <rect x="3" y="3" width="94" height="136" rx="5" fill="none" stroke={navy} strokeWidth="2" />
+        <rect width="100" height="142" fill={navy} />
+        <rect x="8" y="8" width="84" height="126" rx="2" fill="#bfe3f7" />
+        <rect x="12" y="12" width="76" height="118" fill={`url(#${id}p)`} />
+        <rect x="9.6" y="9.6" width="80.8" height="122.8" rx="1.2" fill="none" stroke={GOLD} strokeWidth="1.1" />
       </svg>
     );
   }
@@ -750,11 +747,46 @@ export function CardBackArt({ theme }: { theme: ThemeId }) {
   );
 }
 
+const SIMPLE_BACK: Record<ThemeId, { ground: string; frame: string; mark: ReactNode }> = {
+  classic: { ground: "#0f4f3a", frame: "#f5b83d", mark: <path d="M50 46 L72 71 L50 96 L28 71 Z" fill="#f5b83d" /> },
+  royal: { ground: "#5a0b18", frame: GOLD, mark: <path d="M50 44 L72 71 L50 98 L28 71 Z" fill={GOLD} /> },
+  glow: { ground: "#0b3125", frame: GOLD, mark: <circle cx="50" cy="71" r="20" fill={GOLD} /> },
+  kite: {
+    ground: "#bfe3f7",
+    frame: GOLD,
+    mark: (
+      <g>
+        <path d="M50 36 L74 66 L50 106 L26 66 Z" fill="#ff8a1f" />
+        <path d="M50 36 L74 66 L50 66 Z" fill="#e63946" />
+        <path d="M26 66 L50 66 L50 106 Z" fill="#14b2a6" />
+      </g>
+    ),
+  },
+};
+
+/** Tiny backs (card < 30px wide): flat ground, one frame line, one mark. No ids, no gradients. */
+function SimpleBack({ theme }: { theme: ThemeId }) {
+  const t = SIMPLE_BACK[theme];
+  const kite = theme === "kite";
+  return (
+    <svg viewBox="0 0 100 142" preserveAspectRatio="xMidYMid slice" className="absolute inset-0 w-full h-full pointer-events-none block" aria-hidden="true">
+      <rect width="100" height="142" fill={kite ? "#143a73" : t.ground} />
+      {kite && <rect x="14" y="14" width="72" height="114" fill={t.ground} />}
+      <rect x={kite ? 14 : 9} y={kite ? 14 : 9} width={kite ? 72 : 82} height={kite ? 114 : 124} fill="none" stroke={t.frame} strokeWidth="7" />
+      {t.mark}
+    </svg>
+  );
+}
+
+export const CardBackArt = memo(function CardBackArt({ theme, width }: { theme: ThemeId; width?: number }) {
+  return width !== undefined && width < 30 ? <SimpleBack theme={theme} /> : <FullBack theme={theme} />;
+});
+
 /* ------------------------------------------------------------------ */
 /* Maal accent                                                          */
 /* ------------------------------------------------------------------ */
 
-export function MaalAccent({ theme, size = 28 }: { theme: ThemeId; size?: number }) {
+export const MaalAccent = memo(function MaalAccent({ theme, size = 28 }: { theme: ThemeId; size?: number }) {
   const id = sid(useId());
   const svg = (children: ReactNode) => (
     <svg
@@ -805,13 +837,35 @@ export function MaalAccent({ theme, size = 28 }: { theme: ThemeId; size?: number
     );
   }
   return null;
-}
+});
+
+/* ------------------------------------------------------------------ */
+/* Avatar badge                                                         */
+/* ------------------------------------------------------------------ */
+
+/** Tiny round badge for player avatars (reads at 14-20px). kite/royal only; null otherwise. */
+export const AvatarBadge = memo(function AvatarBadge({ theme, size }: { theme: ThemeId; size: number }) {
+  if (theme !== "kite" && theme !== "royal") return null;
+  const kite = theme === "kite";
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true" className="pointer-events-none block shrink-0">
+      <circle cx="10" cy="10" r="9.2" fill={kite ? "#fff3cf" : GOLD} stroke={kite ? "#f0a73a" : "#9a6f12"} strokeWidth="1.2" />
+      {kite ? (
+        <KiteMark x={10} y={8.6} s={9.5} rot={12} c={KITE_SETS[0]} outline="#143a73" spar="rgba(255,255,255,.8)" ow={0.09} />
+      ) : (
+        <g transform="translate(10 4.2) scale(11)">
+          <JamaraDef from={-30} to={30} count={5} seed={0} />
+        </g>
+      )}
+    </svg>
+  );
+});
 
 /* ------------------------------------------------------------------ */
 /* Theme swatch                                                         */
 /* ------------------------------------------------------------------ */
 
-export function ThemeSwatch({ theme }: { theme: ThemeId }) {
+export const ThemeSwatch = memo(function ThemeSwatch({ theme }: { theme: ThemeId }) {
   const f = THEME_FELT[theme];
   return (
     <div aria-hidden="true" className="relative h-full w-full overflow-hidden pointer-events-none" style={{ background: f.page }}>
@@ -846,4 +900,4 @@ export function ThemeSwatch({ theme }: { theme: ThemeId }) {
       <TableDecor theme={theme} compact />
     </div>
   );
-}
+});

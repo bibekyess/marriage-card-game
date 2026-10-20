@@ -1,4 +1,6 @@
 import { cn } from "@/lib/utils";
+import { AvatarBadge } from "@/components/theme/decor";
+import type { ThemeId } from "@/lib/themes";
 
 const GRADIENTS = [
   ["#f59e0b", "#b45309"],
@@ -34,10 +36,12 @@ interface Props {
   progress?: number | null;
   /** Festive red tika dot (Royal / Kite themes). */
   tika?: boolean;
+  /** Small festival badge at the top right (Kite theme). */
+  badge?: ThemeId | null;
   className?: string;
 }
 
-export function Avatar({ name, index, size = 44, isBot, offline, active, progress, tika, className }: Props) {
+export function Avatar({ name, index, size = 44, isBot, offline, active, progress, tika, badge, className }: Props) {
   const [a, b] = GRADIENTS[index % GRADIENTS.length];
   const r = size / 2 + 3;
   const circ = 2 * Math.PI * r;
@@ -77,6 +81,11 @@ export function Avatar({ name, index, size = 44, isBot, offline, active, progres
           style={{ width: Math.max(4, size * 0.11), height: Math.max(5, size * 0.15) }}
           aria-hidden
         />
+      )}
+      {badge && size >= 30 && (
+        <span className="absolute -right-1.5 -top-1.5" aria-hidden>
+          <AvatarBadge theme={badge} size={Math.round(size * 0.42)} />
+        </span>
       )}
       {isBot && (
         <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 rounded-full bg-[#0b1713] px-1 text-[8px] font-extrabold leading-[13px] tracking-wider text-gold ring-1 ring-gold/40">

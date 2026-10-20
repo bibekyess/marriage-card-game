@@ -274,10 +274,8 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
               boxShadow: `inset 0 0 0 6px ${THEME_FELT[theme].rim}, inset 0 0 0 8px #c9a14a66, inset 0 10px 60px rgba(0,0,0,.45), 0 30px 60px -20px rgba(0,0,0,.8)`,
             }}
           >
-            {/* On short screens the Glow greeting would cross the pile labels; keep it faint. */}
-            <div className={cn("absolute inset-0", theme === "glow" && shortScreen && "opacity-40")}>
-              <FeltPattern theme={theme} />
-            </div>
+            {/* On short landscape phones there's no room for the Glow greeting below the piles. */}
+            <FeltPattern theme={theme} hideWatermark={shortScreen} />
           </div>
           {others.map((idx, k) => {
             const spot = (landscape ? SPOTS : SPOTS_PORTRAIT)[others.length]?.[k] ?? [50, 0];

@@ -52,6 +52,7 @@ export function Seat({ seat, active, dealer, progress, maal, size = 46, showSets
           active={active}
           progress={active ? progress : null}
           tika={theme === "royal" || theme === "kite"}
+          badge={theme === "kite" ? "kite" : null}
         />
         {dealer && (
           <span className="absolute -left-1 -top-1 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-white text-[10px] font-extrabold text-[#0b2a1f] shadow ring-2 ring-[#0b2a1f]" title="Dealer">

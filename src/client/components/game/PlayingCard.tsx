@@ -70,7 +70,7 @@ export const PlayingCard = memo(function PlayingCard({ id, width = 56, maal, sel
         style={base}
         aria-label="Face-down card"
       >
-        <CardBackArt theme={theme} />
+        <CardBackArt theme={theme} width={width} />
       </div>
     );
   }

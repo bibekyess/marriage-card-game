@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { THEMES, type ThemeId } from "../../lib/themes";
-import { CardBackArt, FeltPattern, MaalAccent, TableDecor, THEME_FELT, ThemeSwatch } from "./decor";
+import { AvatarBadge, CardBackArt, FeltPattern, MaalAccent, TableDecor, THEME_FELT, ThemeSwatch } from "./decor";
 
 const FONT_HREF = "https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap";
 
@@ -10,7 +10,7 @@ function CardBack({ theme, width }: { theme: ThemeId; width: number }) {
       className="relative rounded-[8px] overflow-hidden border border-white shrink-0"
       style={{ width, aspectRatio: "1 / 1.42" }}
     >
-      <CardBackArt theme={theme} />
+      <CardBackArt theme={theme} width={width} />
     </div>
   );
 }
@@ -37,11 +37,16 @@ function MockTable({ theme, width, height }: { theme: ThemeId; width: number; he
         <TableDecor theme={theme} />
       </div>
       <div className="absolute left-1/2 top-[34%] z-[2] flex -translate-x-1/2 items-end gap-3">
-        <CardBack theme={theme} width={18} />
+        <CardBack theme={theme} width={16} />
+        <CardBack theme={theme} width={24} />
         <CardBack theme={theme} width={56} />
         <CardBack theme={theme} width={110} />
         <div className="relative">
           <MaalAccent theme={theme} size={36} />
+        </div>
+        <div className="flex items-center gap-1.5 self-center rounded-full bg-black/30 p-1">
+          <AvatarBadge theme={theme} size={16} />
+          <AvatarBadge theme={theme} size={20} />
         </div>
       </div>
       <div className="absolute bottom-2 right-2 z-[2] overflow-hidden rounded-md border border-white/20" style={{ width: 132, height: 80 }}>
@@ -52,6 +57,8 @@ function MockTable({ theme, width, height }: { theme: ThemeId; width: number; he
 }
 
 export function DevThemes() {
+  // ?full=<themeId> renders just the table decor over the whole viewport (used to count SVG nodes).
+  const full = new URLSearchParams(window.location.search).get("full") as ThemeId | null;
   useEffect(() => {
     const link = document.createElement("link");
     link.rel = "stylesheet";
@@ -61,6 +68,14 @@ export function DevThemes() {
       link.remove();
     };
   }, []);
+
+  if (full) {
+    return (
+      <div id="full" className="fixed inset-0" style={{ background: THEME_FELT[full].felt }}>
+        <TableDecor theme={full} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-neutral-900 p-4 text-white">
