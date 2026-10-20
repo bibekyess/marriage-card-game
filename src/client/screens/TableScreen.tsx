@@ -3,7 +3,7 @@ import { ArrowDownUp, ArrowUp, BarChart3, Eye, Layers, Menu, Sparkles, Trophy, W
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Hand } from "@/components/game/Hand";
+import { Hand, HandGroup } from "@/components/game/Hand";
 import { Piles } from "@/components/game/Piles";
 import { Seat } from "@/components/game/Seat";
 import { PlayingCard } from "@/components/game/PlayingCard";
@@ -11,6 +11,7 @@ import { Avatar } from "@/components/game/Avatar";
 import { FeltPattern, TableDecor, THEME_FELT } from "@/components/theme/decor";
 import { useTheme } from "@/lib/themes";
 import { computeHints, computeShowState, groupedOrder } from "@/lib/hints";
+import { addGroup, afterDrag, cleanGroups, GROUP_TAG, groupsFirst, loadGroups, saveGroups } from "@/lib/groups";
 import { nameOf, roundLabel, signed, totals } from "@/lib/format";
 import { act } from "@/lib/store";
 import { sfx } from "@/lib/sound";
@@ -18,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { RoundResult } from "./RoundResult";
 import { ScoreSheet } from "./ScoreSheet";
 import { MenuSheet } from "./MenuSheet";
-import { card, CardId, cardLabel, sortByRank, sortBySuit } from "../../shared/cards";
+import { CardId, cardLabel, sortByRank, sortBySuit } from "../../shared/cards";
 import { findTunnels, MELD_LABEL, meldType } from "../../shared/melds";
 import type { TableView } from "../../shared/protocol";
 import { dubleesAllowed, MAX_PLAYERS } from "../../shared/settings";
@@ -101,6 +102,20 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
     act("arrange", { order: o });
   };
 
+  // The player's own groups for this round, kept in the browser.
+  const groupsKey = `${v.code}:${v.round}:${v.you}`;
+  const [groupState, setGroupState] = useState(() => ({ key: groupsKey, groups: loadGroups(v.code, v.round, v.you) }));
+  const groups = useMemo(
+    () => cleanGroups(groupState.key === groupsKey ? groupState.groups : loadGroups(v.code, v.round, v.you), v.hand),
+    [groupState, groupsKey, v.code, v.round, v.you, v.hand],
+  );
+  const arrangeGroups = (o: CardId[], gs: CardId[][]) => {
+    setGroupState({ key: groupsKey, groups: gs });
+    saveGroups(v.code, v.round, v.you, gs);
+    arrange(groupsFirst(o, gs));
+  };
+  const handOrder = useMemo(() => groupsFirst(order, groups), [order, groups]);
+
   const [selected, setSelected] = useState<Set<CardId>>(new Set());
   useEffect(() => {
     setSelected((s) => {
@@ -115,19 +130,33 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
       return n;
     });
 
-  // The selected cards make a set: offer to move them together at the left of the hand.
+  // The selected cards make a set (and aren't already one group): offer to group them.
   const selectedMeld = useMemo(() => {
-    if (selected.size < 2 || selected.size > 5) return null;
+    if (selected.size < 2 || selected.size > 13) return null;
+    if (groups.some((g) => g.length === selected.size && g.every((c) => selected.has(c)))) return null;
     const t = meldType([...selected], v.maal);
     return t === "dublee" && !dubleesAllowed(v.settings, v.seats.length) ? null : t;
-  }, [selected, v.maal, v.settings, v.seats.length]);
+  }, [selected, groups, v.maal, v.settings, v.seats.length]);
   const groupSelected = () => {
-    let set = sortByRank([...selected]);
-    // Ace-high runs (Q K A) read better with the ace last.
-    if (set.some((c) => card(c).rank === 13)) set = [...set.filter((c) => card(c).rank !== 1), ...set.filter((c) => card(c).rank === 1)];
-    arrange([...set, ...order.filter((c) => !selected.has(c))]);
+    arrangeGroups(handOrder, addGroup(groups, [...selected]));
     setSelected(new Set());
   };
+  const handGroups: HandGroup[] = useMemo(
+    () => groups.map((g) => ({ cards: g, label: (() => { const t = meldType(g, v.maal); return t ? GROUP_TAG[t] : "Group"; })() })),
+    [groups, v.maal],
+  );
+  // Tapping a group's tag selects the whole group (or clears it if it's all selected).
+  const tapGroup = (gi: number) => {
+    const g = groups[gi];
+    if (!g) return;
+    setSelected((s) => {
+      const n = new Set(s);
+      const all = g.every((c) => n.has(c));
+      g.forEach((c) => (all ? n.delete(c) : n.add(c)));
+      return n;
+    });
+  };
+  const ungroup = (gi: number) => arrangeGroups(handOrder, groups.filter((_, i) => i !== gi));
 
   const [sortMode, setSortMode] = useState<"suit" | "rank">("rank"); // first tap sorts by suit
   const [menu, setMenu] = useState(false);
@@ -413,14 +442,17 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
                 onClick={() => {
                   const next = sortMode === "suit" ? "rank" : "suit";
                   setSortMode(next);
-                  arrange(next === "suit" ? sortBySuit(order) : sortByRank(order));
+                  arrangeGroups(next === "suit" ? sortBySuit(handOrder) : sortByRank(handOrder), groups);
                 }}
                 aria-label={`Sort by ${sortMode === "suit" ? "rank" : "suit"}`}
                 title="Sort"
               >
                 <ArrowDownUp />
               </Button>
-              <Button size="icon" variant="secondary" className={cn("h-9 w-9", toolBtn)} onClick={() => arrange(groupedOrder({ ...v, hand: order }, h))} aria-label="Group sets" title="Group sets">
+              <Button size="icon" variant="secondary" className={cn("h-9 w-9", toolBtn)} onClick={() => {
+                  const auto = groupedOrder({ ...v, hand: handOrder }, h);
+                  arrangeGroups(auto.order, auto.groups);
+                }} aria-label="Group sets" title="Group sets">
                 <Layers />
               </Button>
               {primary}
@@ -439,14 +471,17 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
           </div>
           <div className="mx-auto max-w-[1180px]">
             <Hand
-              cards={order}
+              cards={handOrder}
+              groups={handGroups}
+              onGroupTap={tapGroup}
+              onUngroup={ungroup}
               maal={v.maal}
               selected={selected}
               drawn={v.drawn}
               glow={tunnelGlow}
               cardWidth={handCw}
               onToggle={toggle}
-              onReorder={arrange}
+              onReorder={(o, moved) => arrangeGroups(o, moved ? afterDrag(groups, o, moved) : groups)}
               onSwipeUp={discardPhase ? (c) => c !== v.picked && discard(c) : undefined}
               dealKey={`${v.code}:${v.round}`}
             />

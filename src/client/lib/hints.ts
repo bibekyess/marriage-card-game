@@ -112,8 +112,8 @@ export function computeShowState(v: TableView, h: Hints, selected: Set<CardId>, 
   return { enabled: false, route: "pure", label: `Show · ${done}/3`, reason: `You need ${plural(missing, "more pure set")}${orDublee} to see the maal.`, suggestion: null };
 }
 
-/** Put complete sets first (pure sets / dublees, or the winning layout), then the rest by suit. */
-export function groupedOrder(v: TableView, h: Hints): CardId[] {
+/** Complete sets found in the hand (pure sets / dublees, or natural sets once seen), then the rest by suit. */
+export function groupedOrder(v: TableView, h: Hints): { order: CardId[]; groups: CardId[][] } {
   let groups: CardId[][] = [];
   if (!h.seen) groups = h.pureSets.length ? h.pureSets : h.dublees.length >= 3 ? h.dublees : [];
   else if (h.seen === "dublee") groups = h.dublees;
@@ -124,5 +124,5 @@ export function groupedOrder(v: TableView, h: Hints): CardId[] {
   const used = new Set(groups.flat());
   const rest = sortBySuit(v.hand.filter((c) => !used.has(c)));
   const wilds = rest.filter((c) => maalKind(c, v.maal));
-  return [...groups.flat(), ...rest.filter((c) => !maalKind(c, v.maal)), ...wilds];
+  return { order: [...groups.flat(), ...rest.filter((c) => !maalKind(c, v.maal)), ...wilds], groups };
 }
