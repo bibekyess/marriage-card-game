@@ -1,4 +1,5 @@
 import type { Session } from "../../shared/protocol";
+import { isPlayerLook, PLAYER_LOOKS } from "../../shared/looks";
 
 // Seat tokens live in localStorage so a refresh (or reopening the link) returns you to your seat.
 
@@ -18,6 +19,17 @@ const write = (k: string, v: string | null) => {
 
 export const savedName = () => read("mg.name") ?? "";
 export const saveName = (n: string) => write("mg.name", n.trim().slice(0, 18));
+
+/** Your avatar picture; null means initials. First visit gets a random one so the table looks lively. */
+export function savedLook(): string | null {
+  const raw = read("mg.look");
+  if (raw === "none") return null;
+  if (isPlayerLook(raw)) return raw;
+  const pick = PLAYER_LOOKS[Math.floor(Math.random() * PLAYER_LOOKS.length)];
+  write("mg.look", pick);
+  return pick;
+}
+export const saveLook = (look: string | null) => write("mg.look", look ?? "none");
 
 export function sessionFor(code: string): Session | null {
   const raw = read("mg.session." + code.toUpperCase());

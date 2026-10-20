@@ -5,14 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { autoFullscreen } from "@/lib/fullscreen";
 import { navigate } from "@/lib/router";
-import { saveName, savedName, sessionFor } from "@/lib/session";
+import { saveLook, savedLook, saveName, savedName, sessionFor } from "@/lib/session";
 import { joinTable } from "@/lib/store";
+import { LookButton, LookDialog } from "@/components/game/LookPicker";
 import { Loading } from "./Loading";
 
 /** Shown when someone opens a shared /t/CODE link. */
 export function JoinScreen({ code, lost }: { code: string; lost: string | null }) {
   const [name, setName] = useState(savedName());
   const [busy, setBusy] = useState(false);
+  const [avatar, setAvatar] = useState(savedLook);
+  const [picking, setPicking] = useState(false);
 
   // A saved seat is being resumed by App; just wait.
   if (sessionFor(code) && !lost) return <Loading text="Taking your seat…" />;
@@ -42,7 +45,20 @@ export function JoinScreen({ code, lost }: { code: string; lost: string | null }
         <label htmlFor="join-name" className="mt-5 block text-xs uppercase tracking-wider text-muted-foreground">
           Your name
         </label>
-        <Input id="join-name" value={name} maxLength={18} onChange={(e) => setName(e.target.value)} className="mt-2 h-12 text-base" autoFocus placeholder="e.g. Sujan" />
+        <div className="mt-2 flex items-center gap-3">
+          <LookButton name={name} look={avatar} onClick={() => setPicking(true)} />
+          <Input id="join-name" value={name} maxLength={18} onChange={(e) => setName(e.target.value)} className="h-12 flex-1 text-base" autoFocus placeholder="e.g. Sujan" />
+        </div>
+        <LookDialog
+          open={picking}
+          onOpenChange={setPicking}
+          name={name}
+          value={avatar}
+          onPick={(l) => {
+            saveLook(l);
+            setAvatar(l);
+          }}
+        />
         <Button type="submit" variant="gold" size="xl" className="mt-5 w-full" disabled={busy}>
           <LogIn /> Join table
         </Button>

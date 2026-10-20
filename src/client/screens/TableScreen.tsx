@@ -572,7 +572,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
               aria-label="See thrown cards"
               className={cn("flex items-center gap-1.5 rounded-full py-1 pl-1 pr-2.5 text-xs font-bold", h.myTurn ? "bg-gradient-to-b from-[#f7c45a] to-[#eba52a] text-[#2a1d00]" : "bg-black/40")}
             >
-              <Avatar name={me?.name ?? "You"} index={me?.avatar ?? 0} size={22} tika={festive} />
+              <Avatar name={me?.name ?? "You"} index={me?.avatar ?? 0} look={me?.look} size={22} tika={festive} />
               {me?.name}
               {v.dealer === h.myIndex && <span className="rounded-full bg-white px-1 text-[9px] text-[#0b2a1f]">D</span>}
             </button>

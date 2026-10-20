@@ -37,7 +37,7 @@ export function ThrownDialog({ view: v, focus, onClose }: Props) {
                 data-testid="thrown-row"
               >
                 <div className="flex w-20 shrink-0 items-center gap-2 sm:w-28">
-                  <Avatar name={s.name} index={s.avatar} size={26} />
+                  <Avatar name={s.name} index={s.avatar} look={s.look} size={26} isBot={s.isBot} />
                   <span className="truncate text-xs font-bold">{s.id === v.you ? "You" : s.name}</span>
                 </div>
                 {thrown.length ? (

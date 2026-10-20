@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 import { io, Socket } from "socket.io-client";
 import type { Ack, Session, TableView } from "../../shared/protocol";
 import type { Settings } from "../../shared/settings";
-import { forgetSession, saveSession, sessionFor } from "./session";
+import { forgetSession, savedLook, saveSession, sessionFor } from "./session";
 import { saveMatch } from "./history";
 
 // The last view of each table is kept so a refresh shows your cards instantly while reconnecting.
@@ -145,8 +145,9 @@ async function entering(event: string, payload: unknown) {
   }
 }
 
-export const createTable = (name: string, settings: Partial<Settings>, bots = 0) => entering("create", { name, settings, bots });
-export const joinTable = (code: string, name: string) => entering("join", { code, name, token: sessionFor(code)?.token });
+export const createTable = (name: string, settings: Partial<Settings>, bots = 0) =>
+  entering("create", { name, settings, bots, look: savedLook() });
+export const joinTable = (code: string, name: string) => entering("join", { code, name, look: savedLook(), token: sessionFor(code)?.token });
 
 /** Give up the seat for good. */
 export async function leaveTable() {

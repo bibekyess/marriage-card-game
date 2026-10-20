@@ -321,6 +321,27 @@ describe("socket server", () => {
     }
   });
 
+  it("shows each player's chosen avatar and gives bots a robot", async () => {
+    const srv = await server();
+    const host = client(srv.port);
+    const made = await host.call("create", { name: "Bibek", look: "v03" });
+    const guest = client(srv.port);
+    // A made-up or bot-only look is ignored rather than refused.
+    expect((await guest.call("join", { code: made.data.code, name: "Ram", look: "b01" })).ok).toBe(true);
+    const third = client(srv.port);
+    await third.call("join", { code: made.data.code, name: "Sita", look: "<script>" });
+    await host.call("addBot");
+    const v = await host.until((x) => x.seats.length === 4);
+    expect(v.seats.map((s) => s.look)).toEqual(["v03", undefined, undefined, expect.stringMatching(/^b\d\d$/)]);
+    // Change it in the lobby, or go back to initials.
+    expect((await guest.call("look", { look: "a10" })).ok).toBe(true);
+    expect((await host.call("look", { look: null })).ok).toBe(true);
+    const bad = await third.call("look", { look: "b02" });
+    expect(bad).toMatchObject({ ok: false, error: "Pick one of the avatars." });
+    const w = await host.until((x) => x.seats[1].look === "a10");
+    expect(w.seats[0].look).toBeUndefined();
+  });
+
   it("tells people when a code doesn't exist", async () => {
     const srv = await server();
     const c = client(srv.port);

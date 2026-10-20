@@ -499,7 +499,7 @@ export async function startServer(opts: ServerOptions) {
       socket.data.lastCreate = now;
       recent.push(now);
       createsByIp.set(ip, recent);
-      const { table, seat } = Table.create(code, name ?? "", (p.settings as any) ?? {}, bots);
+      const { table, seat } = Table.create(code, name ?? "", (p.settings as any) ?? {}, bots, p.look);
       observe(table);
       events.track("table.created", { code, name: seat.name, ip, data: bots ? { bots } : undefined });
       if (bots) table.start(seat.id);
@@ -527,7 +527,7 @@ export async function startServer(opts: ServerOptions) {
         return changed(t);
       }
       if (!name || !name.trim()) return bad("Enter your name first.");
-      const { id, token: fresh } = t.join(name);
+      const { id, token: fresh } = t.join(name, p.look);
       events.track("player.joined", { code, name: nameOf(t, id), ip, data: watching(t, id) });
       attach(socket, t, id);
       reply({ ok: true, data: { code, playerId: id, token: fresh } });
@@ -599,6 +599,7 @@ export async function startServer(opts: ServerOptions) {
         if (typeof p.on !== "boolean") bad("Invalid autoplay value.");
         t.setAutoplay(id, optStr(p.id, "id", 40) ?? id, p.on);
       },
+      look: (t, id, p) => t.setLook(id, p.look === null ? null : reqStr(p.look, "look", 10)),
       endMatch: (t, id) => t.endMatch(id),
       newMatch: (t, id) => t.newMatch(id),
     };

@@ -9,6 +9,8 @@ export interface SeatView {
   id: string;
   name: string;
   avatar: number;
+  /** Avatar picture id (shared/looks.ts); missing means show initials. */
+  look?: string;
   isBot: boolean;
   connected: boolean;
   autoplay: boolean; // a bot is playing for this person
@@ -112,7 +114,7 @@ export interface TableView {
   log: LogEntry[];
   /** Recent moves this match, oldest first (older cached views may not have it). */
   plays?: Play[];
-  spectators: { id: string; name: string }[];
+  spectators: { id: string; name: string; look?: string }[];
   /** Everyone who has sat at this table this match, including people who left. */
   names: Record<string, string>;
   /** When this match started; with the code it identifies the match in history. */

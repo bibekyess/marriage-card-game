@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Avatar } from "@/components/game/Avatar";
+import { LookButton, LookDialog } from "@/components/game/LookPicker";
 import { autoFullscreen } from "@/lib/fullscreen";
+import { saveLook } from "@/lib/session";
 import { navigate, tableUrl } from "@/lib/router";
 import { act, leaveTable } from "@/lib/store";
 import { RulesForm, rulesSummary } from "./RulesForm";
@@ -42,6 +44,8 @@ export function Lobby({ view: v }: { view: TableView }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Settings>(v.settings);
   const [copied, setCopied] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const me = v.seats.find((s) => s.id === v.you) ?? v.spectators.find((s) => s.id === v.you);
   const hostName = v.seats.find((s) => s.id === v.hostId)?.name ?? "the host";
 
   const copyCode = async () => {
@@ -114,7 +118,11 @@ export function Lobby({ view: v }: { view: TableView }) {
           <ul className="divide-y divide-white/[0.06]">
             {v.seats.map((s) => (
               <li key={s.id} className="flex items-center gap-3 py-2.5">
-                <Avatar name={s.name} index={s.avatar} size={38} isBot={s.isBot} offline={!s.connected} />
+                {s.id === v.you ? (
+                  <LookButton name={s.name} index={s.avatar} look={s.look ?? null} size={38} onClick={() => setPicking(true)} />
+                ) : (
+                  <Avatar name={s.name} index={s.avatar} look={s.look} size={38} isBot={s.isBot} offline={!s.connected} />
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 truncate font-semibold">
                     {s.name}
@@ -132,7 +140,11 @@ export function Lobby({ view: v }: { view: TableView }) {
             ))}
             {v.spectators.map((s) => (
               <li key={s.id} className="flex items-center gap-3 py-2.5 opacity-70">
-                <Avatar name={s.name} index={9} size={38} />
+                {s.id === v.you ? (
+                  <LookButton name={s.name} index={9} look={s.look ?? null} size={38} onClick={() => setPicking(true)} />
+                ) : (
+                  <Avatar name={s.name} index={9} look={s.look} size={38} />
+                )}
                 <div className="flex-1 font-semibold">{s.name}</div>
                 <Badge variant="muted">Watching</Badge>
               </li>
@@ -155,6 +167,17 @@ export function Lobby({ view: v }: { view: TableView }) {
         </div>
       </div>
 
+      <LookDialog
+        open={picking}
+        onOpenChange={setPicking}
+        name={me?.name ?? ""}
+        index={v.seats.find((s) => s.id === v.you)?.avatar ?? 9}
+        value={me?.look ?? null}
+        onPick={(look) => {
+          saveLook(look);
+          run("look", { look });
+        }}
+      />
       <Dialog open={editing} onOpenChange={setEditing}>
         <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>

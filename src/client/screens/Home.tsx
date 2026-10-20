@@ -7,9 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { autoFullscreen } from "@/lib/fullscreen";
 import { navigate } from "@/lib/router";
-import { pref, saveName, savedName, setPref } from "@/lib/session";
+import { pref, saveLook, savedLook, saveName, savedName, setPref } from "@/lib/session";
 import { createTable, joinTable } from "@/lib/store";
 import { PlayingCard } from "@/components/game/PlayingCard";
+import { LookButton, LookDialog } from "@/components/game/LookPicker";
 import { RulesSheet } from "./RulesSheet";
 import { HistorySheet, YourTables } from "./HomeExtras";
 import { ThemePicker } from "./ThemePicker";
@@ -24,6 +25,8 @@ export function Home() {
   const [rules, setRules] = useState(false);
   const [history, setHistory] = useState(false);
   const [look, setLook] = useState(false);
+  const [avatar, setAvatar] = useState(savedLook);
+  const [picking, setPicking] = useState(false);
   const [settings, setSettings] = useState<Settings>(() => sanitizeSettings(pref("settings", DEFAULT_SETTINGS)));
   const [bots, setBots] = useState(3);
 
@@ -102,15 +105,18 @@ export function Home() {
             <Label htmlFor="name" className="text-xs uppercase tracking-wider text-muted-foreground">
               Your name
             </Label>
-            <Input
-              id="name"
-              value={name}
-              maxLength={18}
-              placeholder="e.g. Sujan"
-              onChange={(e) => setName(e.target.value)}
-              className="mt-2 h-12 text-base"
-              autoComplete="nickname"
-            />
+            <div className="mt-2 flex items-center gap-3">
+              <LookButton name={name} look={avatar} onClick={() => setPicking(true)} />
+              <Input
+                id="name"
+                value={name}
+                maxLength={18}
+                placeholder="e.g. Sujan"
+                onChange={(e) => setName(e.target.value)}
+                className="h-12 flex-1 text-base"
+                autoComplete="nickname"
+              />
+            </div>
 
             <div className="mt-5 grid gap-3">
               <Button variant="gold" size="xl" onClick={() => !needName() && setDialog("create")} disabled={busy}>
@@ -192,6 +198,16 @@ export function Home() {
         </DialogContent>
       </Dialog>
 
+      <LookDialog
+        open={picking}
+        onOpenChange={setPicking}
+        name={name}
+        value={avatar}
+        onPick={(l) => {
+          saveLook(l);
+          setAvatar(l);
+        }}
+      />
       <RulesSheet open={rules} onOpenChange={setRules} />
       <HistorySheet open={history} onOpenChange={setHistory} />
       <Dialog open={look} onOpenChange={setLook}>

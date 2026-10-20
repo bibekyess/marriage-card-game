@@ -157,7 +157,7 @@ export function ScoreSheet({ view: v, open, onOpenChange }: { view: TableView; o
             <div className="grid gap-2 sm:grid-cols-2">
               {[...ids].sort((a, b) => (net[b] ?? 0) - (net[a] ?? 0)).map((id) => (
                 <div key={id} className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-black/20 p-3">
-                  <Avatar name={name(id)} index={seat(id)?.avatar ?? 0} size={34} isBot={seat(id)?.isBot} />
+                  <Avatar name={name(id)} index={seat(id)?.avatar ?? 0} look={seat(id)?.look} size={34} isBot={seat(id)?.isBot} />
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-bold">{name(id)}</div>
                     <div className="text-xs text-muted-foreground">{signed(t[id])} pts</div>

@@ -28,7 +28,7 @@ function ActivityList({ view: v }: { view: TableView }) {
               )}
               data-testid="activity-item"
             >
-              <Avatar name={nameOf(v, p.by)} index={seat?.avatar ?? 0} size={20} />
+              <Avatar name={nameOf(v, p.by)} index={seat?.avatar ?? 0} look={seat?.look} size={20} />
               <span className="min-w-0 flex-1">{text}</span>
               {p.card && <PlayingCard id={p.card} width={20} maal={v.maal} dim={p.kind === "stock"} className="shrink-0 !shadow-none" />}
             </li>

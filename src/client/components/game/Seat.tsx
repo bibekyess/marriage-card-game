@@ -82,6 +82,7 @@ export function Seat({ seat, active, dealer, progress, elapsed = null, maal, siz
         <Avatar
           name={seat.name}
           index={seat.avatar}
+          look={seat.look}
           size={size}
           isBot={seat.isBot || seat.autoplay}
           offline={!seat.connected}

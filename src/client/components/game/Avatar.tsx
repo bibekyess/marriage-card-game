@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { isLook, lookUrl } from "../../../shared/looks";
 import { AvatarBadge } from "@/components/theme/decor";
 import type { ThemeId } from "@/lib/themes";
 
@@ -28,6 +30,8 @@ const initials = (name: string) =>
 interface Props {
   name: string;
   index: number;
+  /** Picture id from shared/looks.ts; initials when missing. */
+  look?: string | null;
   size?: number;
   isBot?: boolean;
   offline?: boolean;
@@ -41,8 +45,11 @@ interface Props {
   className?: string;
 }
 
-export function Avatar({ name, index, size = 44, isBot, offline, active, progress, tika, badge, className }: Props) {
+export function Avatar({ name, index, look, size = 44, isBot, offline, active, progress, tika, badge, className }: Props) {
   const [a, b] = GRADIENTS[index % GRADIENTS.length];
+  // Fall back to initials if the picture is unknown or fails to load.
+  const [broken, setBroken] = useState<string | null>(null);
+  const pic = isLook(look) && look !== broken ? look : null;
   const r = size / 2 + 3;
   const circ = 2 * Math.PI * r;
   return (
@@ -68,12 +75,16 @@ export function Avatar({ name, index, size = 44, isBot, offline, active, progres
       )}
       <div
         className={cn(
-          "flex h-full w-full items-center justify-center rounded-full font-bold text-white shadow-md ring-2 ring-black/30",
+          "flex h-full w-full items-center justify-center overflow-hidden rounded-full font-bold text-white shadow-md ring-2 ring-black/30",
           offline && "grayscale opacity-60",
         )}
         style={{ background: `linear-gradient(145deg, ${a}, ${b})`, fontSize: size * 0.36 }}
       >
-        {initials(name)}
+        {pic ? (
+          <img src={lookUrl(pic)} alt="" width={size} height={size} draggable={false} className="h-full w-full select-none" onError={() => setBroken(pic)} />
+        ) : (
+          initials(name)
+        )}
       </div>
       {tika && (
         <span

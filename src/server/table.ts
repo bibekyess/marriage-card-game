@@ -17,6 +17,7 @@ import {
 import { maalPoints, scoreRound } from "../shared/scoring";
 import { LogEntry, Play, RoundReveal, RoundRow, Route, TableStatus, TableView, ThrownCard } from "../shared/protocol";
 import { dubleesAllowed, LEGACY_SETTINGS, MAX_PLAYERS, MIN_PLAYERS, sanitizeSettings, Settings, timerLabel } from "../shared/settings";
+import { BOT_LOOKS, isPlayerLook } from "../shared/looks";
 import type { EventType } from "./events";
 
 export class GameError extends Error {}
@@ -28,6 +29,8 @@ export interface SeatState {
   id: string;
   name: string;
   avatar: number;
+  /** Picture from shared/looks.ts; none means initials (and older saved tables). */
+  look?: string;
   isBot: boolean;
   token: string;
   autoplay: boolean;
@@ -74,7 +77,7 @@ export interface TableState {
   dealer: number;
   dealerId?: string;
   seats: SeatState[];
-  spectators: { id: string; name: string; token: string }[];
+  spectators: { id: string; name: string; token: string; look?: string }[];
   game: RoundState | null;
   rounds: RoundRow[];
   reveal: RoundReveal | null;
@@ -102,6 +105,8 @@ export const cleanName = (n: unknown) =>
     .slice(0, 18)
     .join("")
     .trim() || "Player";
+/** A look a player sent, if it's one they may pick. */
+export const cleanLook = (x: unknown) => (isPlayerLook(x) ? x : undefined);
 
 
 export type NextStep = { kind: "bot" | "timeout"; at: number } | null;
@@ -139,8 +144,8 @@ export class Table {
     if (this.s.rounds.some((r) => r.winnerId)) this.note("match.ended", undefined, { players: this.humanNames(), rounds: this.s.rounds.length });
   }
 
-  static create(code: string, hostName: string, settings: Partial<Settings>, practiceBots = 0) {
-    const host: SeatState = { id: newId(), name: cleanName(hostName), avatar: 0, isBot: false, token: newId(18), autoplay: false };
+  static create(code: string, hostName: string, settings: Partial<Settings>, practiceBots = 0, look?: unknown) {
+    const host: SeatState = { id: newId(), name: cleanName(hostName), avatar: 0, look: cleanLook(look), isBot: false, token: newId(18), autoplay: false };
     const t = new Table({
       code,
       hostId: host.id,
@@ -204,6 +209,21 @@ export class Table {
     for (let i = 0; i < 12; i++) if (!used.has(i)) return i;
     return this.s.seats.length % 12;
   }
+  /** A random robot not already at the table. */
+  private nextBotLook() {
+    const used = new Set(this.s.seats.map((x) => x.look));
+    const free = BOT_LOOKS.filter((l) => !used.has(l));
+    const pool = free.length ? free : BOT_LOOKS;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  /** Change your own picture (null for initials). Allowed any time; it's only cosmetic. */
+  setLook(id: string, look: string | null) {
+    if (look !== null && !isPlayerLook(look)) fail("Pick one of the avatars.");
+    const who = this.seat(id) ?? this.s.spectators.find((x) => x.id === id);
+    if (!who) return fail("You're not at this table.");
+    who.look = look ?? undefined;
+  }
 
   // ---------- membership ----------
 
@@ -212,17 +232,18 @@ export class Table {
     return s ? s.id : null;
   }
 
-  join(name: string) {
+  join(name: string, look?: unknown) {
     const nm = cleanName(name);
+    const lk = cleanLook(look);
     const token = newId(18);
     const id = newId();
     const canSit = (this.s.status === "lobby" || this.s.status === "roundEnd") && this.s.seats.length < MAX_PLAYERS;
     if (canSit) {
-      this.s.seats.push({ id, name: nm, avatar: this.nextAvatar(), isBot: false, token, autoplay: false });
+      this.s.seats.push({ id, name: nm, avatar: this.nextAvatar(), look: lk, isBot: false, token, autoplay: false });
       this.log(`${nm} joined the table.`);
     } else {
       if (this.s.spectators.length >= MAX_SPECTATORS) fail("This table is full.");
-      this.s.spectators.push({ id, name: nm, token });
+      this.s.spectators.push({ id, name: nm, token, look: lk });
       this.log(`${nm} is watching${this.s.seats.length >= MAX_PLAYERS ? " (table is full)" : " and will join next round"}.`);
     }
     // A table whose host has gone (left with nobody to hand over to) gets a new host.
@@ -255,7 +276,7 @@ export class Table {
     if (this.s.seats.length >= MAX_PLAYERS) fail(`A table seats at most ${MAX_PLAYERS} players.`);
     const used = new Set(this.s.seats.map((x) => x.name));
     const name = BOT_NAMES.find((n) => !used.has(n)) ?? `Bot ${this.s.seats.length}`;
-    this.s.seats.push({ id: newId(), name, avatar: this.nextAvatar(), isBot: true, token: newId(18), autoplay: false });
+    this.s.seats.push({ id: newId(), name, avatar: this.nextAvatar(), look: this.nextBotLook(), isBot: true, token: newId(18), autoplay: false });
     this.log(`${name} (bot) sat down.`);
     this.note("bot.added", name);
   }
@@ -372,7 +393,7 @@ export class Table {
     // Seat anyone who was waiting, if there's room.
     while (this.s.spectators.length && this.s.seats.length < MAX_PLAYERS) {
       const sp = this.s.spectators.shift()!;
-      this.s.seats.push({ id: sp.id, name: sp.name, avatar: this.nextAvatar(), isBot: false, token: sp.token, autoplay: false });
+      this.s.seats.push({ id: sp.id, name: sp.name, avatar: this.nextAvatar(), look: sp.look, isBot: false, token: sp.token, autoplay: false });
     }
     this.deal();
   }
@@ -823,6 +844,8 @@ export class Table {
         id: x.id,
         name: x.name,
         avatar: x.avatar,
+        // Bots from tables saved before looks existed still get a robot.
+        look: x.look ?? (x.isBot ? BOT_LOOKS[x.avatar % BOT_LOOKS.length] : undefined),
         isBot: x.isBot,
         connected: x.isBot || this.connected.has(x.id),
         autoplay: x.autoplay,
@@ -850,7 +873,7 @@ export class Table {
       reveal: s.reveal,
       log: s.log.slice(-15),
       plays: s.plays ?? [],
-      spectators: s.spectators.map((x) => ({ id: x.id, name: x.name })),
+      spectators: s.spectators.map((x) => ({ id: x.id, name: x.name, look: x.look })),
       names,
       matchStartedAt: s.matchStartedAt ?? s.createdAt,
       serverNow: Date.now(),

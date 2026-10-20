@@ -9,7 +9,7 @@ export interface MatchRecord {
   startedAt: number;
   endedAt: number;
   you: string;
-  players: { id: string; name: string; avatar: number; isBot: boolean }[];
+  players: { id: string; name: string; avatar: number; look?: string; isBot: boolean }[];
   rounds: RoundRow[];
   settings: Settings;
 }
@@ -56,6 +56,7 @@ export function saveMatch(v: TableView) {
       id: pid,
       name: v.names?.[pid] ?? seat(pid)?.name ?? "Player",
       avatar: seat(pid)?.avatar ?? 0,
+      look: seat(pid)?.look,
       isBot: seat(pid)?.isBot ?? false,
     })),
     rounds: v.rounds,
@@ -82,6 +83,7 @@ export function viewFromRecord(m: MatchRecord): TableView {
       id: p.id,
       name: p.name,
       avatar: p.avatar,
+      look: p.look,
       isBot: p.isBot,
       connected: true,
       autoplay: false,

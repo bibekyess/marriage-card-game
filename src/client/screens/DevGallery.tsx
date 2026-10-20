@@ -1,5 +1,6 @@
 import { PlayingCard } from "@/components/game/PlayingCard";
 import { Avatar } from "@/components/game/Avatar";
+import { BOT_LOOKS, PLAYER_LOOKS } from "../../shared/looks";
 
 // Dev-only visual check of cards and avatars (/__gallery in `npm run dev`).
 export function DevGallery() {
@@ -15,7 +16,7 @@ export function DevGallery() {
       ))}
       <div className="flex gap-4">
         {Array.from({ length: 6 }, (_, i) => (
-          <Avatar key={i} name={["Anisha", "Rohan", "Maya", "Sujan Rai", "Bibek", "Pema"][i]} index={i} isBot={i % 2 === 0} active={i === 1} offline={i === 3} />
+          <Avatar key={i} name={["Anisha", "Rohan", "Maya", "Sujan Rai", "Bibek", "Pema"][i]} index={i} look={i === 5 ? null : i % 2 ? PLAYER_LOOKS[i] : BOT_LOOKS[i]} isBot={i % 2 === 0} active={i === 1} offline={i === 3} />
         ))}
       </div>
     </div>

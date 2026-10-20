@@ -82,7 +82,7 @@ export function RoundResult({ view: v, open, onOpenChange, onScores }: { view: T
             return (
               <div key={p.id} className={cn("flex flex-col gap-2 p-3 sm:flex-row sm:items-center", p.id === r.winnerId && "bg-gold/[0.05]")}>
                 <div className="flex w-[150px] shrink-0 items-center gap-2.5">
-                  <Avatar name={name(p.id)} index={s?.avatar ?? 0} size={32} isBot={s?.isBot} />
+                  <Avatar name={name(p.id)} index={s?.avatar ?? 0} look={s?.look} size={32} isBot={s?.isBot} />
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5 truncate text-sm font-bold">
                       {name(p.id)}
