@@ -54,6 +54,14 @@ export function isMeld(ids: CardId[], maal: CardId | null): boolean {
 
 export type MeldType = "tunnel" | "pure" | "sequence" | "trial" | "dublee";
 
+export const MELD_LABEL: Record<MeldType, string> = {
+  tunnel: "Tunnela",
+  pure: "Pure sequence",
+  sequence: "Sequence",
+  trial: "Trial",
+  dublee: "Dublee",
+};
+
 export function meldType(ids: CardId[], maal: CardId | null): MeldType | null {
   if (ids.length === 2 && ids[0] !== ids[1] && faceKey(ids[0]) === faceKey(ids[1])) return "dublee";
   if (isTunnel(ids)) return "tunnel";

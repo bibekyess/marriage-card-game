@@ -17,9 +17,10 @@ import { cn } from "@/lib/utils";
 import { RoundResult } from "./RoundResult";
 import { ScoreSheet } from "./ScoreSheet";
 import { MenuSheet } from "./MenuSheet";
-import { CardId, cardLabel, sortByRank, sortBySuit } from "../../shared/cards";
+import { card, CardId, cardLabel, sortByRank, sortBySuit } from "../../shared/cards";
+import { MELD_LABEL, meldType } from "../../shared/melds";
 import type { TableView } from "../../shared/protocol";
-import { MAX_PLAYERS } from "../../shared/settings";
+import { dubleesAllowed, MAX_PLAYERS } from "../../shared/settings";
 
 function useViewport() {
   const [vp, setVp] = useState({ w: window.innerWidth, h: window.innerHeight });
@@ -112,6 +113,20 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
       n.has(id) ? n.delete(id) : n.add(id);
       return n;
     });
+
+  // The selected cards make a set: offer to move them together at the left of the hand.
+  const selectedMeld = useMemo(() => {
+    if (selected.size < 2 || selected.size > 5) return null;
+    const t = meldType([...selected], v.maal);
+    return t === "dublee" && !dubleesAllowed(v.settings, v.seats.length) ? null : t;
+  }, [selected, v.maal, v.settings, v.seats.length]);
+  const groupSelected = () => {
+    let set = sortByRank([...selected]);
+    // Ace-high runs (Q K A) read better with the ace last.
+    if (set.some((c) => card(c).rank === 13)) set = [...set.filter((c) => card(c).rank !== 1), ...set.filter((c) => card(c).rank === 1)];
+    arrange([...set, ...order.filter((c) => !selected.has(c))]);
+    setSelected(new Set());
+  };
 
   const [sortMode, setSortMode] = useState<"suit" | "rank">("rank"); // first tap sorts by suit
   const [menu, setMenu] = useState(false);
@@ -339,7 +354,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
             </div>
             {!h.seen ? (
               <span className="rounded-full border border-gold/40 bg-black/20 px-2.5 py-1 text-xs font-bold text-gold" data-testid="pure-count">
-                Pure {Math.min(3, h.pureSets.length)}/3{h.dubleeOk ? ` · Dublee ${Math.min(7, h.dublees.length)}/7` : ""}
+                Pure {Math.min(3, 3 - h.setsNeeded + h.pureSets.length)}/3{h.dubleeOk ? ` · Dublee ${Math.min(7, h.dublees.length)}/7` : ""}
               </span>
             ) : (
               <span className="flex items-center gap-1 rounded-full border border-emerald-400/40 bg-black/20 px-2.5 py-1 text-xs font-bold text-emerald-300">
@@ -358,6 +373,11 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
               </div>
             )}
             <div className="ml-auto flex items-center gap-1.5">
+              {selectedMeld && (
+                <Button size="sm" variant="secondary" className={cn("h-9", toolBtn)} onClick={groupSelected} data-testid="group-selected">
+                  <Layers /> {vp.w < 520 ? MELD_LABEL[selectedMeld] : `Group · ${MELD_LABEL[selectedMeld]}`}
+                </Button>
+              )}
               <Button
                 size="icon"
                 variant="secondary"
