@@ -53,7 +53,9 @@ Defaults are configurable per table by the host.
 - **Tunnela at the start:** before their first draw, a player may show every tunnel they were dealt. Each counts as one of the 3 pure sets (3 tunnels = maal seen at once). Only these tunnels score, and only if the player sees the maal; afterwards the dublee route is closed to them.
 - Or show **7 dublees** (pairs of identical cards). Allowed only when dublees are on and there are **4+ players**.
 
-**Wild cards** (once you've seen): Tiplu (same rank and suit), Poplu (+1, same suit), Jhiplu (−1, same suit), Alter (same rank, same colour, other suit), and Jokers (same rank, opposite colour). All of them are wild, but jokers score nothing.
+**Wild cards** (once you've seen): Tiplu (same rank and suit), Poplu (+1, same suit), Jhiplu (−1, same suit), Alter (same rank, same colour, other suit), and Plain wilds (same rank, opposite colour). All of them are wild, but plain wilds score nothing.
+
+**Printed cards** (settings, default 2 Jokers + 1 Bhoot, 159 cards). Jokers are dead until you've seen, then wild; no points. The Bhoot is wild from the start: it can fill a pure sequence or tunnel to see the maal (not a tunnela shown before the first draw), still counts as pure, scores 5, and can never be thrown. Any two printed cards make a dublee. The maal is never a printed card.
 
 **Declare (win).** After drawing, a player who has seen arranges every card left in their hand, except one discard, into sequences (3+, wilds allowed), trials (3–4 of the same rank in different suits, wilds allowed) or tunnels. A dublee player wins by holding an **8th dublee**.
 

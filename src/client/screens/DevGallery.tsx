@@ -9,6 +9,7 @@ export function DevGallery() {
       {[84, 56, 34].map((w) => (
         <div key={w} className="flex flex-wrap gap-2">
           {["S", "H", "C", "D"].flatMap((s) => ranks.map((r) => <PlayingCard key={r + s + w} id={`${r}${s}0`} width={w} maal={w === 56 ? "9H0" : null} />))}
+          {["JK0", "BH0"].map((id) => <PlayingCard key={id + w} id={id} width={w} maal={w === 56 ? "9H0" : null} />)}
           <PlayingCard width={w} />
         </div>
       ))}

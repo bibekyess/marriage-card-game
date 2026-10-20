@@ -4,14 +4,18 @@ import type { TableView } from "../../shared/protocol";
 import { dubleesAllowed } from "../../shared/settings";
 
 // One marker for every wild card: letters like "J" or "A" read as ranks on a card.
-export const MAAL_TAG: Record<MaalKind, string> = { tiplu: "★", poplu: "★", jhiplu: "★", alter: "★", joker: "★" };
+export const MAAL_TAG: Record<MaalKind, string> = { tiplu: "★", poplu: "★", jhiplu: "★", alter: "★", plain: "★", joker: "★", bhoot: "★" };
 export const MAAL_NAME: Record<MaalKind, string> = {
   tiplu: "Tiplu",
   poplu: "Poplu",
   jhiplu: "Jhiplu",
   alter: "Alter",
+  plain: "Plain wild",
   joker: "Joker",
+  bhoot: "Bhoot",
 };
+/** Wild cards that score nothing get a silver star; point cards gold. */
+export const isPointless = (k: MaalKind) => k === "plain" || k === "joker";
 
 export interface Hints {
   myIndex: number;

@@ -1,4 +1,4 @@
-import { card, CardId, sortByRank } from "../../shared/cards";
+import { card, CardId, isPrinted, sortByRank } from "../../shared/cards";
 import { MeldType } from "../../shared/melds";
 
 // Groups are the player's own clusters of cards in the hand (a set they've put together).
@@ -14,9 +14,11 @@ export const GROUP_TAG: Record<MeldType, string> = {
 
 /** Cards of a set in reading order; ace-high runs (Q K A) keep the ace last. */
 export function readingOrder(ids: CardId[]): CardId[] {
-  const set = sortByRank(ids);
-  if (!set.some((c) => card(c).rank === 13)) return set;
-  return [...set.filter((c) => card(c).rank !== 1), ...set.filter((c) => card(c).rank === 1)];
+  const sorted = sortByRank(ids);
+  const set = sorted.filter((c) => !isPrinted(c));
+  const printed = sorted.filter(isPrinted); // Jokers and the Bhoot go last
+  if (!set.some((c) => card(c).rank === 13)) return [...set, ...printed];
+  return [...set.filter((c) => card(c).rank !== 1), ...set.filter((c) => card(c).rank === 1), ...printed];
 }
 
 /** Drop groups whose cards left the hand (shown, thrown) and any card listed twice. */

@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { BotView, choosePlay, chooseDiscard, chooseDraw } from "../shared/bot";
-import { cardLabel, CardId, fullDeck, HAND_SIZE, isCardId, shuffle } from "../shared/cards";
+import { cardLabel, CardId, fullDeck, HAND_SIZE, isBhoot, isCardId, isPrinted, shuffle } from "../shared/cards";
 import {
   allDubleeFinishes,
   allFinishes,
@@ -12,10 +12,11 @@ import {
   findShow,
   findTunnels,
   Finish,
+  BHOOT_NO_THROW,
 } from "../shared/melds";
 import { maalPoints, scoreRound } from "../shared/scoring";
 import { LogEntry, RoundReveal, RoundRow, Route, TableStatus, TableView, ThrownCard } from "../shared/protocol";
-import { dubleesAllowed, MAX_PLAYERS, MIN_PLAYERS, sanitizeSettings, Settings, timerLabel } from "../shared/settings";
+import { dubleesAllowed, LEGACY_SETTINGS, MAX_PLAYERS, MIN_PLAYERS, sanitizeSettings, Settings, timerLabel } from "../shared/settings";
 import type { EventType } from "./events";
 
 export class GameError extends Error {}
@@ -111,7 +112,10 @@ export class Table {
   /** Set by the server to observe milestones for the event log; the table itself does no I/O. */
   onEvent?: (type: EventType, f: { name?: string; data?: Record<string, unknown> }) => void;
 
-  constructor(public s: TableState) {}
+  constructor(public s: TableState) {
+    // Fill in rules added since the table was saved (older tables keep playing without printed cards).
+    s.settings = sanitizeSettings(s.settings, LEGACY_SETTINGS);
+  }
 
   private note(type: EventType, name?: string, data?: Record<string, unknown>) {
     try {
@@ -403,10 +407,12 @@ export class Table {
     if (this.s.round === 1 || this.s.dealer === undefined) this.s.dealer = n - 1;
     else this.s.dealer = prev >= 0 ? (prev + 1) % n : this.s.dealer % n;
     this.s.dealerId = this.s.seats[this.s.dealer].id;
-    const stock = shuffle(fullDeck(), rand);
+    const stock = shuffle(fullDeck(this.s.settings), rand);
     const hands: Record<string, CardId[]> = {};
     for (const seat of this.s.seats) hands[seat.id] = stock.splice(0, HAND_SIZE);
-    const maal = stock.splice(rand ? rand(stock.length) : Math.floor(Math.random() * stock.length), 1)[0];
+    // The maal is always a natural card: a Joker or the Bhoot can't be the tiplu.
+    const natural = stock.flatMap((c, i) => (isPrinted(c) ? [] : [i]));
+    const maal = stock.splice(natural[rand ? rand(natural.length) : Math.floor(Math.random() * natural.length)], 1)[0];
     const discard = [stock.pop()!];
     this.s.game = {
       hands,
@@ -472,6 +478,7 @@ export class Table {
     const hand = g.hands[id];
     if (!isCardId(c) || !hand.includes(c)) fail("That card isn't in your hand.");
     if (c === g.picked) fail("You can't throw back the card you just picked up.");
+    if (isBhoot(c)) fail(BHOOT_NO_THROW);
     hand.splice(hand.indexOf(c), 1);
     g.discard.push(c);
     g.discardBy = id;
@@ -640,7 +647,7 @@ export class Table {
     const points = Object.fromEntries(this.s.seats.map((x) => [x.id, 0]));
     const seen = Object.fromEntries(this.s.seats.map((x) => [x.id, !!g.seen[x.id]]));
     this.s.rounds.push({ round: this.s.round, dealerId: this.s.seats[this.s.dealer].id, winnerId: "", route: "pure", points, seen, maal: g.maal });
-    const empty = { tiplu: 0, poplu: 0, jhiplu: 0, alter: 0, marriages: 0, tunnels: 0, points: 0 };
+    const empty = { tiplu: 0, poplu: 0, jhiplu: 0, alter: 0, bhoot: 0, marriages: 0, tunnels: 0, points: 0 };
     this.s.reveal = {
       winnerId: "",
       route: "pure",

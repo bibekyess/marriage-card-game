@@ -7,6 +7,8 @@ export interface MaalBreakdown {
   poplu: number;
   jhiplu: number;
   alter: number;
+  /** Missing on rounds scored before the Bhoot existed. */
+  bhoot?: number;
   marriages: number;
   tunnels: number;
   points: number;
@@ -14,10 +16,10 @@ export interface MaalBreakdown {
 
 /** Maal points held by one player. Every tunnel in `groups` scores. */
 export function maalPoints(cards: CardId[], groups: CardId[][], maal: CardId, s: Settings): MaalBreakdown {
-  const b = { tiplu: 0, poplu: 0, jhiplu: 0, alter: 0, marriages: 0, tunnels: 0, points: 0 };
+  const b = { tiplu: 0, poplu: 0, jhiplu: 0, alter: 0, bhoot: 0, marriages: 0, tunnels: 0, points: 0 };
   for (const c of cards) {
     const k = maalKind(c, maal);
-    if (k && k !== "joker") b[k]++;
+    if (k && k !== "plain" && k !== "joker") b[k]++;
   }
   b.marriages = Math.min(b.tiplu, b.poplu, b.jhiplu);
   b.tunnels = groups.filter(isTunnel).length;
@@ -26,6 +28,7 @@ export function maalPoints(cards: CardId[], groups: CardId[][], maal: CardId, s:
     b.tiplu * s.tiplu +
     (b.poplu + b.jhiplu) * s.popluJhiplu +
     (b.alter ? s.alter[Math.min(b.alter, 3) - 1] : 0) +
+    b.bhoot * (s.bhootPoints ?? 0) +
     b.marriages * (s.marriage - single) +
     b.tunnels * s.tunnel;
   return b;

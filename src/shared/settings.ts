@@ -13,6 +13,11 @@ export interface Settings {
   alter: [number, number, number]; // 1, 2 or 3 alter cards
   marriage: number; // tiplu + poplu + jhiplu together
   tunnel: number; // per tunnel shown
+  /** Printed Jokers added to the decks (0–2): wild once the maal is seen, no points. */
+  jokers: number;
+  /** Add the printed Bhoot: wild even in pure sets, scores `bhootPoints`, can't be thrown. */
+  bhoot: boolean;
+  bhootPoints: number;
   dublees: boolean; // allow 7 dublees to see the maal / 8 to win
   dubleeMinPlayers: number;
   restrictPickup: boolean; // before seeing, a thrown card may only be taken to complete a pure set
@@ -33,6 +38,9 @@ export const DEFAULT_SETTINGS: Settings = {
   alter: [5, 15, 25],
   marriage: 10,
   tunnel: 5,
+  jokers: 2,
+  bhoot: true,
+  bhootPoints: 5,
   dublees: true,
   dubleeMinPlayers: 4,
   restrictPickup: true,
@@ -107,6 +115,9 @@ export function sanitizeSettings(raw: Partial<Settings> | undefined, base: Setti
     alter: [0, 1, 2].map((i) => int(alter[i], base.alter[i])) as [number, number, number],
     marriage: int(r.marriage, base.marriage),
     tunnel: int(r.tunnel, base.tunnel),
+    jokers: int(r.jokers, base.jokers ?? 0, 0, 2),
+    bhoot: typeof r.bhoot === "boolean" ? r.bhoot : (base.bhoot ?? false),
+    bhootPoints: int(r.bhootPoints, base.bhootPoints ?? DEFAULT_SETTINGS.bhootPoints),
     dublees: typeof r.dublees === "boolean" ? r.dublees : base.dublees,
     dubleeMinPlayers: int(r.dubleeMinPlayers, base.dubleeMinPlayers, 2, 5),
     restrictPickup: typeof r.restrictPickup === "boolean" ? r.restrictPickup : base.restrictPickup,
@@ -116,6 +127,9 @@ export function sanitizeSettings(raw: Partial<Settings> | undefined, base: Setti
       : base.botSpeed,
   };
 }
+
+/** Base for tables saved before printed cards existed: they keep playing without them. */
+export const LEGACY_SETTINGS: Settings = { ...DEFAULT_SETTINGS, jokers: 0, bhoot: false };
 
 export function dubleesAllowed(s: Settings, players: number) {
   return s.dublees && players >= s.dubleeMinPlayers;

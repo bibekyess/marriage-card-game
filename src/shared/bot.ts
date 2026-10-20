@@ -1,4 +1,4 @@
-import { card, CardId, cardLabel, faceKey, isWild, maalKind } from "./cards";
+import { card, CardId, cardLabel, dubleeKey, faceKey, isBhoot, isPrinted, isWild, maalKind } from "./cards";
 import {
   completesPure,
   findDubleeFinish,
@@ -45,7 +45,12 @@ export function cardValues(hand: CardId[], maal: CardId | null, route: Route | n
 
   if (dubleeMode) {
     for (const pair of findDublees(hand)) pair.forEach((c) => val.set(c, 50));
-    if (maal) for (const c of hand) if (maalKind(c, maal) && maalKind(c, maal) !== "joker") val.set(c, val.get(c)! + 5);
+    for (const c of hand) {
+      const k = maalKind(c, maal);
+      if (k && k !== "plain" && k !== "joker") val.set(c, val.get(c)! + 5);
+      // A lone printed card is half a dublee with the next one.
+      else if (isPrinted(c) && val.get(c) === 0) val.set(c, 3);
+    }
     return val;
   }
 
@@ -53,14 +58,19 @@ export function cardValues(hand: CardId[], maal: CardId | null, route: Route | n
 
   for (const a of hand) {
     if (val.get(a)! >= 100) continue;
-    if (seen && isWild(a, maal)) {
+    if (isBhoot(a) || (seen && isWild(a, maal))) {
       val.set(a, 1000);
+      continue;
+    }
+    // A Joker is dead until the maal is seen, then wild: worth holding on to.
+    if (isPrinted(a)) {
+      val.set(a, 6);
       continue;
     }
     const ca = card(a);
     let v = 0;
     for (const b of hand) {
-      if (a === b || (seen && isWild(b, maal))) continue;
+      if (a === b || isPrinted(b) || (seen && isWild(b, maal))) continue;
       const cb = card(b);
       if (faceKey(a) === faceKey(b)) v += seen ? 1 : 4;
       else if (ca.suit === cb.suit) {
@@ -90,7 +100,7 @@ export function chooseDraw(v: BotView): "stock" | "discard" {
   if (!top) return "stock";
   const seen = v.route !== null;
   const dubleeMode = v.route === "dublee" || (!seen && prefersDublee(v.hand, v.dubleeAllowed));
-  if (dubleeMode) return v.hand.some((c) => faceKey(c) === faceKey(top)) ? "discard" : "stock";
+  if (dubleeMode) return v.hand.some((c) => dubleeKey(c) === dubleeKey(top)) ? "discard" : "stock";
   if (!seen) return completesPure(v.hand, top, false) ? "discard" : "stock";
   if (isWild(top, v.maal)) return "discard";
   // Take it if it would make a complete set with two cards already held.
@@ -106,14 +116,14 @@ export function chooseDiscard(v: BotView, jitter = true): CardId {
   let best: CardId | null = null;
   let bestV = Infinity;
   for (const c of v.hand) {
-    if (c === v.picked) continue;
+    if (c === v.picked || isBhoot(c)) continue;
     const x = values.get(c)! + (jitter ? Math.random() * 0.2 : 0);
     if (x < bestV) {
       bestV = x;
       best = c;
     }
   }
-  return best ?? v.hand.find((c) => c !== v.picked) ?? v.hand[0];
+  return best ?? v.hand.find((c) => c !== v.picked && !isBhoot(c)) ?? v.hand[0];
 }
 
 export type BotPlan =
@@ -154,9 +164,10 @@ const labels = (ids: CardId[]) => ids.map(cardLabel).join(" ");
 
 /** Cards in the hand that work with `a`: same face, or same suit within two ranks (or same rank once seen). */
 function neighbours(hand: CardId[], a: CardId, maal: CardId | null, seen: boolean): CardId[] {
+  if (isPrinted(a)) return [];
   const ca = card(a);
   return hand.filter((b) => {
-    if (b === a || (seen && isWild(b, maal))) return false;
+    if (b === a || isPrinted(b) || (seen && isWild(b, maal))) return false;
     const cb = card(b);
     if (faceKey(a) === faceKey(b)) return true;
     if (ca.suit === cb.suit) return rankGap(ca.rank, cb.rank) <= 2;
@@ -183,7 +194,7 @@ export function drawTip(v: BotView): Tip {
   if (!top || chooseDraw(v) === "stock") return { pile: "stock", text: "Draw from the stock: the discard doesn't help you." };
   const seen = v.route !== null;
   const t = cardLabel(top);
-  const same = v.hand.find((c) => faceKey(c) === faceKey(top));
+  const same = v.hand.find((c) => dubleeKey(c) === dubleeKey(top));
   if (v.route === "dublee" || (!seen && prefersDublee(v.hand, v.dubleeAllowed)))
     return { pile: "discard", text: `Take the ${t}: it makes a dublee with your ${cardLabel(same!)}.` };
   if (seen && isWild(top, v.maal)) return { pile: "discard", text: `Take the ${t}: it's a wild card.` };

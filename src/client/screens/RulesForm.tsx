@@ -160,6 +160,9 @@ export function RulesForm({ value: s, onChange, disabled }: Props) {
         <Row title="Tunnel" hint="Each tunnel shown at the start (needs maal seen).">
           <Num value={s.tunnel} disabled={disabled} onChange={(v) => up("tunnel", v)} />
         </Row>
+        <Row title="Bhoot" hint="The printed Bhoot card.">
+          <Num value={s.bhootPoints} disabled={disabled || !s.bhoot} onChange={(v) => up("bhootPoints", v)} />
+        </Row>
         <Row title="Dublee win bonus" hint="Extra from each player when someone wins by dublees.">
           <Num value={s.dubleeBonus} disabled={disabled} onChange={(v) => up("dubleeBonus", v)} />
         </Row>
@@ -177,6 +180,17 @@ export function RulesForm({ value: s, onChange, disabled }: Props) {
               { v: "count", label: "Count" },
             ]}
           />
+        </Row>
+        <Row title="Printed Jokers" hint="Wild once you've seen the maal. No points.">
+          <Segmented
+            value={s.jokers}
+            disabled={disabled}
+            onChange={(v) => up("jokers", v)}
+            options={[0, 1, 2].map((v) => ({ v, label: String(v) }))}
+          />
+        </Row>
+        <Row title="Bhoot" hint="Wild even in pure sets, scores points, can't be thrown.">
+          <Switch checked={s.bhoot} disabled={disabled} onCheckedChange={(v) => up("bhoot", v)} aria-label="Bhoot" />
         </Row>
         <Row title="Dublees" hint="7 dublees to see the maal, 8 to win.">
           <Switch checked={s.dublees} disabled={disabled} onCheckedChange={(v) => up("dublees", v)} aria-label="Dublees" />
@@ -210,6 +224,8 @@ export function rulesSummary(s: Settings) {
     s.unseenRule[0].toUpperCase() + s.unseenRule.slice(1),
     s.dublees ? (s.dubleeMinPlayers >= 4 ? "Dublee 4+" : "Dublee") : "No dublee",
   ];
+  const printed = [s.jokers ? `${s.jokers} Joker${s.jokers > 1 ? "s" : ""}` : "", s.bhoot ? "Bhoot" : ""].filter(Boolean);
+  if (printed.length) parts.push(printed.join(" + "));
   if (s.turnTimer) parts.push(`${timerLabel(s.turnTimer)} timer`);
   return parts.join(" · ");
 }

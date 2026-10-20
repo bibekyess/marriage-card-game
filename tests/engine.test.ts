@@ -1,15 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { maalKind } from "../src/shared/cards";
+import { cardLabel, fullDeck, isCardId, isPrinted, isWild, maalKind } from "../src/shared/cards";
+import { chooseDiscard } from "../src/shared/bot";
 import {
+  allFinishes,
+  checkFinish,
   completesPure,
   findDubleeFinish,
   findDubleeShow,
+  findDublees,
   findFinish,
   findShow,
+  findTunnels,
   isPureSequence,
   isSequence,
   isTrial,
   isTunnel,
+  meldType,
 } from "../src/shared/melds";
 import { maalPoints, scoreRound, settle } from "../src/shared/scoring";
 import { DEFAULT_SETTINGS, sanitizeSettings } from "../src/shared/settings";
@@ -33,9 +39,9 @@ describe("melds", () => {
   });
 
   it("lets maal cards fill sequences and trials", () => {
-    const maal = "7D0"; // tiplu 7♦, poplu 8♦, jhiplu 6♦, alter 7♥, jokers 7♠ 7♣
+    const maal = "7D0"; // tiplu 7♦, poplu 8♦, jhiplu 6♦, alter 7♥, plain wilds 7♠ 7♣
     expect(maalKind("7H1", maal)).toBe("alter");
-    expect(maalKind("7S1", maal)).toBe("joker");
+    expect(maalKind("7S1", maal)).toBe("plain");
     expect(maalKind("8D1", maal)).toBe("poplu");
     expect(maalKind("6D1", maal)).toBe("jhiplu");
     expect(isSequence(["4H0", "7S0", "6H0"], maal)).toBe(true);
@@ -526,5 +532,110 @@ describe("re-review fixes", () => {
     });
     expect(results[0]).not.toBeNull();
     expect(results[0]).toBe(results[1]);
+  });
+});
+
+describe("printed Jokers and the Bhoot", () => {
+  const SETS = [["AD0", "2D0", "3D0"], ["7S0", "8S0", "9S2"], ["JH0", "QH0", "KH0"]];
+
+  it("adds them to the deck from the settings", () => {
+    expect(fullDeck()).toHaveLength(156);
+    const deck = fullDeck({ jokers: 2, bhoot: true });
+    expect(deck).toHaveLength(159);
+    expect(deck).toEqual(expect.arrayContaining(["JK0", "JK1", "BH0"]));
+    expect(deck.every(isCardId)).toBe(true);
+    expect(cardLabel("BH0")).toBe("Bhoot");
+    expect(cardLabel("JK1")).toBe("Joker");
+  });
+
+  it("lets the Bhoot fill a pure sequence or tunnel, but never a Joker", () => {
+    expect(isPureSequence(["4H0", "BH0", "6H0"])).toBe(true);
+    expect(isPureSequence(["BH0", "QS0", "KS0"])).toBe(true);
+    expect(isPureSequence(["4H0", "JK0", "6H0"])).toBe(false);
+    expect(isTunnel(["9C0", "9C1", "BH0"])).toBe(true);
+    expect(isTunnel(["9C0", "9S1", "BH0"])).toBe(false);
+    expect(isTunnel(["JK0", "JK1", "BH0"])).toBe(false);
+    // Shown tunnela at the start are natural only.
+    expect(findTunnels(["9C0", "9C1", "BH0", "JK0", "JK1"])).toEqual([]);
+    // The app keeps the Bhoot free when natural sets are enough.
+    const hand = [...SETS.flat(), "4H0", "6H0", "BH0"];
+    expect(findShow(hand)!.flat()).not.toContain("BH0");
+    expect(findShow(["AD0", "2D0", "3D0", "7S0", "8S0", "BH0", "JH0", "QH0", "KH0"])).toHaveLength(3);
+  });
+
+  it("makes Jokers wild only once the maal is seen", () => {
+    expect(isWild("JK0", null)).toBe(false);
+    expect(isWild("JK0", "7D0")).toBe(true);
+    expect(isWild("BH0", null)).toBe(true);
+    expect(isSequence(["4H0", "JK0", "6H0"], null)).toBe(false);
+    expect(isSequence(["4H0", "JK0", "6H0"], "7D0")).toBe(true);
+    expect(isTrial(["QH0", "QS0", "JK1"], "7D0")).toBe(true);
+    // Other wild cards can't complete a tunnel; the Bhoot can.
+    expect(findFinish(["9C0", "9C1", "7D1", "4S0"], "7D0")).toBeNull();
+    expect(findFinish(["9C0", "9C1", "BH0", "4S0"], "7D0")).toEqual({ discard: "4S0", groups: [["9C0", "9C1", "BH0"]] });
+  });
+
+  it("pairs any two printed cards as a dublee", () => {
+    expect(meldType(["JK0", "JK1"], null)).toBe("dublee");
+    expect(meldType(["JK0", "BH0"], null)).toBe("dublee");
+    expect(meldType(["JK0", "4H0"], "7D0")).toBeNull();
+    expect(findDublees(["JK0", "4H0", "BH0", "5S0"])).toEqual([["JK0", "BH0"]]);
+    expect(completesPure(["JK0", "4H0"], "BH0", true)).toBe(true);
+  });
+
+  it("scores the Bhoot and not the Jokers, and rounds still sum to 0", () => {
+    const b = maalPoints(["BH0", "JK0", "JK1", "4H0"], [], "7D0", S);
+    expect(b.bhoot).toBe(1);
+    expect(b.points).toBe(S.bhootPoints);
+    const rows = scoreRound(
+      [
+        { id: "w", seen: true, cards: ["JK0"], shown: [] },
+        { id: "x", seen: true, cards: ["BH0"], shown: [] },
+        { id: "y", seen: false, cards: ["JK1"], shown: [] },
+      ],
+      "w",
+      "7D0",
+      S,
+      false,
+    );
+    expect(rows.find((r) => r.id === "x")!.maal).toBe(5);
+    expect(rows.reduce((a, r) => a + r.points, 0)).toBe(0);
+  });
+
+  it("never lets the Bhoot be thrown", () => {
+    const { table, seat } = Table.create("BHT", "Host", { restrictPickup: false }, 0);
+    table.join("Guest");
+    table.start(seat.id);
+    const g = table.s.game!;
+    g.hands[seat.id] = [...g.hands[seat.id].filter((c) => c !== "BH0").slice(0, 20), "BH0"];
+    table.draw(seat.id, "stock");
+    expect(() => table.discard(seat.id, "BH0")).toThrow(/Bhoot/);
+    expect(chooseDiscard(table.botView(seat.id))).not.toBe("BH0");
+    // A finish never throws it either.
+    const hand = [...SETS.flat(), "4H0", "5H0", "6H0", "BH0"];
+    expect(findFinish(hand, "2C0", { preferDiscard: "BH0" })).toBeNull();
+    expect(findFinish(hand, "2C0")!.discard).not.toBe("BH0");
+    expect(allFinishes(hand, "2C0").map((f) => f.discard)).not.toContain("BH0");
+    expect(checkFinish(hand, "2C0", "pure", SETS.concat([["4H0", "5H0", "6H0"]]), "BH0")).toMatch(/Bhoot/);
+  });
+
+  it("never picks a printed card as the maal", () => {
+    for (let i = 0; i < 40; i++) {
+      const { table } = Table.create("MAAL", "Host", {}, 1);
+      table._dealForTest((n) => n - 1 - (i % n)); // a different fixed deal each time
+      expect(isPrinted(table.s.game!.maal)).toBe(false);
+    }
+  });
+
+  it("keeps older tables without printed cards", () => {
+    const { table } = Table.create("OLD", "Host", {}, 1);
+    const saved = JSON.parse(JSON.stringify(table.s));
+    delete saved.settings.jokers;
+    delete saved.settings.bhoot;
+    delete saved.settings.bhootPoints;
+    const loaded = new Table(saved);
+    expect(loaded.s.settings.jokers).toBe(0);
+    expect(loaded.s.settings.bhoot).toBe(false);
+    expect(Table.create("NEW", "Host", {}, 1).table.s.settings).toMatchObject({ jokers: 2, bhoot: true, bhootPoints: 5 });
   });
 });

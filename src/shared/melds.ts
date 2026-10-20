@@ -1,4 +1,7 @@
-import { card, CardId, cardLabel, faceKey, isWild } from "./cards";
+import { card, CardId, cardLabel, dubleeKey, faceKey, isBhoot, isPrinted, isWild } from "./cards";
+
+/** The Bhoot is too valuable to give away: it can never be thrown. */
+export const BHOOT_NO_THROW = "That's the Bhoot card, don't throw it.";
 
 // ---------- single-group checks ----------
 
@@ -13,14 +16,20 @@ function fitsRun(ranks: number[], len: number): boolean {
   return false;
 }
 
+/** Three identical cards; the Bhoot may stand in for one of them. */
 export function isTunnel(ids: CardId[]): boolean {
-  return ids.length === 3 && ids.every((x) => faceKey(x) === faceKey(ids[0])) && new Set(ids).size === 3;
+  if (ids.length !== 3 || new Set(ids).size !== 3) return false;
+  const nat = ids.filter((x) => !isBhoot(x));
+  if (nat.some(isPrinted)) return false;
+  return nat.every((x) => faceKey(x) === faceKey(nat[0]));
 }
 
-/** Same suit, consecutive ranks, no wild cards used. */
+/** Same suit, consecutive ranks. Only the Bhoot may fill a gap; maal cards count as their face. */
 export function isPureSequence(ids: CardId[]): boolean {
-  if (ids.length < 3 || ids.length > 13) return false;
-  const cs = ids.map(card);
+  if (ids.length < 3 || ids.length > 13 || new Set(ids).size !== ids.length) return false;
+  const nat = ids.filter((x) => !isBhoot(x));
+  if (nat.some(isPrinted)) return false;
+  const cs = nat.map(card);
   if (!cs.every((c) => c.suit === cs[0].suit)) return false;
   return fitsRun(cs.map((c) => c.rank), ids.length);
 }
@@ -34,7 +43,10 @@ export function isPure(ids: CardId[]): boolean {
 export function isSequence(ids: CardId[], maal: CardId | null): boolean {
   if (ids.length < 3 || ids.length > 13) return false;
   if (isPureSequence(ids)) return true;
-  const nat = ids.filter((x) => !isWild(x, maal)).map(card);
+  const natIds = ids.filter((x) => !isWild(x, maal));
+  // A Joker before the maal is seen is a dead card: it fits nowhere.
+  if (natIds.some(isPrinted)) return false;
+  const nat = natIds.map(card);
   if (!nat.length) return true;
   if (!nat.every((c) => c.suit === nat[0].suit)) return false;
   return fitsRun(nat.map((c) => c.rank), ids.length);
@@ -43,7 +55,9 @@ export function isSequence(ids: CardId[], maal: CardId | null): boolean {
 /** Three (or four) cards of one rank in different suits; maal cards can fill in. */
 export function isTrial(ids: CardId[], maal: CardId | null): boolean {
   if (ids.length < 3 || ids.length > 4) return false;
-  const nat = ids.filter((x) => !isWild(x, maal)).map(card);
+  const natIds = ids.filter((x) => !isWild(x, maal));
+  if (natIds.some(isPrinted)) return false;
+  const nat = natIds.map(card);
   if (!nat.length) return true;
   return nat.every((c) => c.rank === nat[0].rank) && new Set(nat.map((c) => c.suit)).size === nat.length;
 }
@@ -63,7 +77,7 @@ export const MELD_LABEL: Record<MeldType, string> = {
 };
 
 export function meldType(ids: CardId[], maal: CardId | null): MeldType | null {
-  if (ids.length === 2 && ids[0] !== ids[1] && faceKey(ids[0]) === faceKey(ids[1])) return "dublee";
+  if (ids.length === 2 && ids[0] !== ids[1] && dubleeKey(ids[0]) === dubleeKey(ids[1])) return "dublee";
   if (isTunnel(ids)) return "tunnel";
   if (isPureSequence(ids)) return "pure";
   if (isSequence(ids, maal)) return "sequence";
@@ -172,8 +186,9 @@ export function pureTriples(hand: CardId[]): CardId[][] {
     const g = idx.map((i) => hand[i]);
     if (isPure(g)) out.push(g);
   }
-  // Tunnels first: they are always safe to show.
-  return out.sort((a, b) => Number(isTunnel(b)) - Number(isTunnel(a)));
+  // Natural sets before ones that use the Bhoot (it's worth keeping free), tunnels first: always safe to show.
+  const bhoot = (g: CardId[]) => Number(g.some(isBhoot));
+  return out.sort((a, b) => bhoot(a) - bhoot(b) || Number(isTunnel(b)) - Number(isTunnel(a)));
 }
 
 /** Up to `want` disjoint pure sets from the hand (largest found first). */
@@ -213,18 +228,18 @@ export function findShow(hand: CardId[], selected: CardId[] = [], want = 3): Car
   return sets.length >= want ? sets : null;
 }
 
-/** Every tunnel (three identical cards) in a hand. */
+/** Every natural tunnel (three identical cards) in a hand: the ones that can be shown at the start. */
 export function findTunnels(hand: CardId[]): CardId[][] {
   const by = new Map<string, CardId[]>();
-  for (const c of hand) by.set(faceKey(c), [...(by.get(faceKey(c)) || []), c]);
+  for (const c of hand) if (!isPrinted(c)) by.set(faceKey(c), [...(by.get(faceKey(c)) || []), c]);
   return [...by.values()].filter((x) => x.length >= 3).map((x) => x.slice(0, 3));
 }
 
-/** All disjoint identical pairs in the hand. */
+/** All disjoint identical pairs in the hand (any two printed cards pair up too). */
 export function findDublees(hand: CardId[]): CardId[][] {
   const by = new Map<string, CardId[]>();
   for (const id of hand) {
-    const k = faceKey(id);
+    const k = dubleeKey(id);
     by.set(k, [...(by.get(k) || []), id]);
   }
   const out: CardId[][] = [];
@@ -247,6 +262,12 @@ export interface Finish {
   groups: CardId[][];
 }
 
+/**
+ * Cards that are interchangeable when arranging a finish share a key. The Bhoot gets its own:
+ * unlike other wild cards it can also complete a tunnel.
+ */
+const finishKey = (maal: CardId | null) => (c: CardId) => (isBhoot(c) ? "B" : isWild(c, maal) ? "W" : faceKey(c));
+
 /** A winning arrangement for a player who has seen the maal via pure sets. */
 export function findFinish(
   hand: CardId[],
@@ -254,12 +275,12 @@ export function findFinish(
   opts: { preferDiscard?: CardId; forbidden?: CardId | null } = {},
 ): Finish | null {
   if (hasDuplicates(hand)) return null;
-  const keyOf = (c: CardId) => (isWild(c, maal) ? "W" : faceKey(c));
+  const keyOf = finishKey(maal);
   const p = partitioner((g) => isMeld(g, maal), keyOf);
   const cands = opts.preferDiscard ? [opts.preferDiscard] : hand;
   const tried = new Set<string>();
   for (const d of cands) {
-    if (d === opts.forbidden || tried.has(keyOf(d))) continue;
+    if (d === opts.forbidden || isBhoot(d) || tried.has(keyOf(d))) continue;
     tried.add(keyOf(d));
     const groups = p.partition(hand.filter((x) => x !== d));
     if (groups) return { discard: d, groups };
@@ -270,12 +291,11 @@ export function findFinish(
 /** Every distinct winning throw (one per card face), sharing one search. */
 export function allFinishes(hand: CardId[], maal: CardId | null, opts: { forbidden?: CardId | null } = {}): Finish[] {
   if (hasDuplicates(hand)) return [];
-  const keyOf = (c: CardId) => (isWild(c, maal) ? "W" : faceKey(c));
-  const p = partitioner((g) => isMeld(g, maal), keyOf);
+  const p = partitioner((g) => isMeld(g, maal), finishKey(maal));
   const out: Finish[] = [];
   const tried = new Set<string>();
   for (const d of hand) {
-    if (d === opts.forbidden || tried.has(faceKey(d))) continue;
+    if (d === opts.forbidden || isBhoot(d) || tried.has(faceKey(d))) continue;
     tried.add(faceKey(d));
     const groups = p.partition(hand.filter((x) => x !== d));
     if (groups) out.push({ discard: d, groups });
@@ -287,7 +307,7 @@ export function allDubleeFinishes(hand: CardId[], opts: { forbidden?: CardId | n
   const out: Finish[] = [];
   const tried = new Set<string>();
   for (const d of hand) {
-    if (d === opts.forbidden || tried.has(faceKey(d))) continue;
+    if (d === opts.forbidden || isBhoot(d) || tried.has(faceKey(d))) continue;
     tried.add(faceKey(d));
     const pairs = findDublees(hand.filter((x) => x !== d));
     if (pairs.length) out.push({ discard: d, groups: [pairs[0]] });
@@ -302,7 +322,7 @@ export function findDubleeFinish(
 ): Finish | null {
   const cands = opts.preferDiscard ? [opts.preferDiscard] : hand;
   for (const d of cands) {
-    if (d === opts.forbidden) continue;
+    if (d === opts.forbidden || isBhoot(d)) continue;
     const pairs = findDublees(hand.filter((x) => x !== d));
     if (pairs.length) return { discard: d, groups: [pairs[0]] };
   }
@@ -324,6 +344,7 @@ export function checkFinish(
   const all = [...groups.flat(), discard];
   if (hasDuplicates(all) || !all.every((c) => hand.includes(c))) return "Those cards aren't all in your hand.";
   if (discard === forbidden) return "You can't throw back the card you just picked up.";
+  if (isBhoot(discard)) return BHOOT_NO_THROW;
   if (route === "dublee") {
     if (groups.length !== 1 || meldType(groups[0], null) !== "dublee") return "Lay down one more dublee to finish.";
     return { discard, groups };
@@ -336,7 +357,7 @@ export function checkFinish(
 
 /** Whether a picked-up card completes a pure set (or dublee) with cards already in hand. */
 export function completesPure(hand: CardId[], pick: CardId, allowDublee: boolean): boolean {
-  if (allowDublee && hand.some((x) => faceKey(x) === faceKey(pick))) return true;
+  if (allowDublee && hand.some((x) => dubleeKey(x) === dubleeKey(pick))) return true;
   for (let i = 0; i < hand.length; i++)
     for (let j = i + 1; j < hand.length; j++) if (isPure([hand[i], hand[j], pick])) return true;
   return false;

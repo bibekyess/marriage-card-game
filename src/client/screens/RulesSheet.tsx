@@ -52,15 +52,34 @@ export function RulesSheet({ open, onOpenChange, settings = DEFAULT_SETTINGS }: 
             <h3 className="font-bold text-gold">2 · Wild cards</h3>
             <p className="text-muted-foreground">
               Once you've seen the maal, these cards are wild and can stand in for any card in a set. They're marked with a star:{" "}
-              <b className="text-gold">gold ★</b> scores points, <b className="text-zinc-300">silver ★</b> is a Joker (wild, no points).
+              <b className="text-gold">gold ★</b> scores points, <b className="text-zinc-300">silver ★</b> is wild but scores nothing.
             </p>
             <ul className="grid grid-cols-2 gap-2 text-xs">
               <li className="rounded-lg bg-black/20 p-2"><b>★ Tiplu</b> — the maal card ({s.tiplu} pts)</li>
               <li className="rounded-lg bg-black/20 p-2"><b>★ Poplu</b> — one above, same suit ({s.popluJhiplu})</li>
               <li className="rounded-lg bg-black/20 p-2"><b>★ Jhiplu</b> — one below, same suit ({s.popluJhiplu})</li>
               <li className="rounded-lg bg-black/20 p-2"><b>★ Alter</b> — same rank &amp; colour ({s.alter.join("/")})</li>
-              <li className="col-span-2 rounded-lg bg-black/20 p-2"><b className="text-zinc-300">★ Joker</b> — same rank, other colour (wild, no points). Tiplu + Poplu + Jhiplu = <b>Marriage</b> ({s.marriage}).</li>
+              <li className="col-span-2 rounded-lg bg-black/20 p-2"><b className="text-zinc-300">★ Plain wild</b> — same rank, other colour (wild, no points). Tiplu + Poplu + Jhiplu = <b>Marriage</b> ({s.marriage}).</li>
             </ul>
+            {(s.jokers > 0 || s.bhoot) && (
+              <>
+                <p className="text-muted-foreground">
+                  {s.jokers > 0 && (
+                    <>
+                      This table adds {s.jokers === 1 ? "a printed Joker" : `${s.jokers} printed Jokers`}: wild once you've seen the maal, no points.{" "}
+                    </>
+                  )}
+                  {s.bhoot && (
+                    <>
+                      The <b className="text-foreground">Bhoot</b> is wild from the start: it can fill a pure sequence or tunnel to see the maal (but not a tunnel
+                      shown before your first draw). It scores {s.bhootPoints} points and can never be thrown.{" "}
+                    </>
+                  )}
+                  {s.dublees && "Any two printed cards make a dublee."}
+                </p>
+                {s.bhoot && <Example title="Pure with the Bhoot" text="The Bhoot fills the gap." cards={["4H0", "BH0", "6H0"]} />}
+              </>
+            )}
           </section>
           <section className="space-y-2">
             <h3 className="font-bold text-gold">3 · Finish</h3>
