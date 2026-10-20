@@ -124,6 +124,31 @@ describe("socket server", () => {
     expect((await client(srv.port).call("resume", { code, token: "nope" })).ok).toBe(false);
   });
 
+  it("shows everyone who threw what, and which throws were picked up", async () => {
+    const srv = await server();
+    const host = client(srv.port);
+    const { code } = (await host.call("create", { name: "Bibek", settings: { restrictPickup: false } })).data;
+    const guest = client(srv.port);
+    expect((await guest.call("join", { code, name: "Sita" })).ok).toBe(true);
+    await host.until((v) => v.seats.length === 2);
+    expect((await host.call("start")).ok).toBe(true);
+    await guest.until((v) => v.status === "playing");
+    expect(guest.view.seats.every((s) => s.thrown.length === 0)).toBe(true);
+
+    await host.call("draw", { from: "stock" });
+    const thrown = (await host.until((v) => v.phase === "discard")).drawn!;
+    await host.call("discard", { card: thrown });
+    const gv = await guest.until((v) => v.turn === 1);
+    expect(gv.seats[0].thrown).toEqual([{ card: thrown }]);
+
+    expect((await guest.call("draw", { from: "discard" })).ok).toBe(true);
+    const hv = await host.until((v) => v.seats[0].thrown[0]?.taken === true);
+    expect(hv.seats[0].thrown).toEqual([{ card: thrown, taken: true }]);
+    const toss = (await guest.until((v) => v.phase === "discard")).hand.find((c) => c !== thrown)!;
+    await guest.call("discard", { card: toss });
+    expect((await host.until((v) => v.turn === 0)).seats[1].thrown).toEqual([{ card: toss }]);
+  });
+
   it("lets the host change the turn timer mid-round", async () => {
     const srv = await server();
     const host = client(srv.port);

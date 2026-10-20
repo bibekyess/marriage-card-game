@@ -14,7 +14,7 @@ import {
   Finish,
 } from "../shared/melds";
 import { maalPoints, scoreRound } from "../shared/scoring";
-import { LogEntry, RoundReveal, RoundRow, Route, TableStatus, TableView } from "../shared/protocol";
+import { LogEntry, RoundReveal, RoundRow, Route, TableStatus, TableView, ThrownCard } from "../shared/protocol";
 import { dubleesAllowed, MAX_PLAYERS, MIN_PLAYERS, sanitizeSettings, Settings, timerLabel } from "../shared/settings";
 import type { EventType } from "./events";
 
@@ -55,6 +55,8 @@ export interface RoundState {
   started?: Record<string, true>;
   /** Showed after drawing: the maal stays hidden from them until they throw a card. */
   maalPending?: string | null;
+  /** Every card each player has thrown this round, oldest first; `taken` once someone picked it up. */
+  thrown?: Record<string, ThrownCard[]>;
 }
 
 export interface TableState {
@@ -438,6 +440,8 @@ export class Table {
       if (!g.seen[id] && this.s.settings.restrictPickup && !completesPure(hand, top, this.dubleeOk()))
         fail("Before seeing the maal you can only pick up a card that completes a pure set" + (this.dubleeOk() ? " or a dublee." : "."));
       c = g.discard.pop()!;
+      const last = g.discardBy ? g.thrown?.[g.discardBy]?.at(-1) : undefined;
+      if (last?.card === c) last.taken = true;
       g.discardBy = null;
       g.picked = c;
       this.log(`${this.nameOf(id)} picked up ${cardLabel(c)}.`);
@@ -466,6 +470,7 @@ export class Table {
     hand.splice(hand.indexOf(c), 1);
     g.discard.push(c);
     g.discardBy = id;
+    ((g.thrown ??= {})[id] ??= []).push({ card: c });
     this.advance();
   }
 
@@ -573,6 +578,7 @@ export class Table {
     const g = this.g;
     g.hands[winnerId] = g.hands[winnerId].filter((c) => c !== f.discard);
     g.discard.push(f.discard);
+    ((g.thrown ??= {})[winnerId] ??= []).push({ card: f.discard });
     // Only tunnels shown before the first draw score, and only once the maal has been seen.
     const inputs = this.s.seats.map((seat) => {
       const hand = g.hands[seat.id];
@@ -792,6 +798,7 @@ export class Table {
         cardCount: g ? g.hands[x.id]?.length ?? 0 : 0,
         seen: g?.seen[x.id] ?? null,
         shown: g?.shown[x.id] ?? [],
+        thrown: g?.thrown?.[x.id] ?? [],
       })),
       dealer: s.dealer,
       turn: g?.turn ?? -1,

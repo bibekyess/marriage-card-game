@@ -88,6 +88,7 @@ export function viewFromRecord(m: MatchRecord): TableView {
       cardCount: 0,
       seen: null,
       shown: [],
+      thrown: [],
     })),
     dealer: 0,
     turn: -1,

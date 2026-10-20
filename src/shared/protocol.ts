@@ -15,6 +15,14 @@ export interface SeatView {
   cardCount: number;
   seen: Route | null;
   shown: CardId[][];
+  /** Cards this player has thrown this round, oldest first. Public, like a real discard pile. */
+  thrown: ThrownCard[];
+}
+
+export interface ThrownCard {
+  card: CardId;
+  /** Someone picked it up from the discard pile. */
+  taken?: boolean;
 }
 
 export interface RoundRow {

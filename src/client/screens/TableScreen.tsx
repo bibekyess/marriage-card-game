@@ -6,6 +6,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Hand, HandGroup } from "@/components/game/Hand";
 import { Piles } from "@/components/game/Piles";
 import { Seat } from "@/components/game/Seat";
+import { ThrownDialog } from "@/components/game/ThrownDialog";
 import { PlayingCard } from "@/components/game/PlayingCard";
 import { Avatar } from "@/components/game/Avatar";
 import { FeltPattern, TableDecor, THEME_FELT } from "@/components/theme/decor";
@@ -165,6 +166,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   const full = useFullscreen();
   useEffect(iPhoneInstallTip, []);
   const [scores, setScores] = useState(false);
+  const [thrownFor, setThrownFor] = useState<string | null>(null);
   const [resultOpen, setResultOpen] = useState(true);
   const [turnFlash, setTurnFlash] = useState(false);
   const flashTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -447,6 +449,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
                   fanLeft={spot[0] > 60}
                   align={spot[0] < 35 ? "left" : spot[0] > 65 ? "right" : "center"}
                   inline={landscape && vp.h < 520 && spot[1] < 10}
+                  onOpen={() => setThrownFor(v.seats[idx].id)}
                 />
               </div>
             );
@@ -458,7 +461,8 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
               </span>
             </div>
           )}
-          <div className="absolute inset-x-0 z-10 flex justify-center" style={{ top: "54%", transform: "translateY(-50%)" }}>
+          {/* Full-width row for centring; only the piles take taps, so side seats stay tappable. */}
+          <div className="pointer-events-none absolute inset-x-0 z-10 flex justify-center [&>*]:pointer-events-auto" style={{ top: "54%", transform: "translateY(-50%)" }}>
             <Piles
               cw={pileCw}
               stockCount={v.stockCount}
@@ -481,11 +485,16 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
       {seated && playing && (
         <div className="safe-pb relative z-20 shrink-0 px-2 pb-1 sm:px-8">
           <div className="mx-auto flex max-w-[1180px] flex-wrap items-center gap-2 pb-1.5">
-            <div className={cn("flex items-center gap-1.5 rounded-full py-1 pl-1 pr-2.5 text-xs font-bold", h.myTurn ? "bg-gradient-to-b from-[#f7c45a] to-[#eba52a] text-[#2a1d00]" : "bg-black/40")}>
+            <button
+              type="button"
+              onClick={() => setThrownFor(v.you)}
+              aria-label="See thrown cards"
+              className={cn("flex items-center gap-1.5 rounded-full py-1 pl-1 pr-2.5 text-xs font-bold", h.myTurn ? "bg-gradient-to-b from-[#f7c45a] to-[#eba52a] text-[#2a1d00]" : "bg-black/40")}
+            >
               <Avatar name={me?.name ?? "You"} index={me?.avatar ?? 0} size={22} tika={festive} />
               {me?.name}
               {v.dealer === h.myIndex && <span className="rounded-full bg-white px-1 text-[9px] text-[#0b2a1f]">D</span>}
-            </div>
+            </button>
             {!h.seen ? (
               <span className="rounded-full border border-gold/40 bg-black/20 px-2.5 py-1 text-xs font-bold text-gold" data-testid="pure-count">
                 Pure {Math.min(3, 3 - h.setsNeeded + h.pureSets.length)}/3{h.dubleeOk ? ` · Dublee ${Math.min(7, h.dublees.length)}/7` : ""}
@@ -632,6 +641,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
         </div>
       )}
       <ScoreSheet view={v} open={scores} onOpenChange={setScores} />
+      <ThrownDialog view={v} focus={thrownFor} onClose={() => setThrownFor(null)} />
       <MenuSheet view={v} open={menu} onOpenChange={setMenu} onScores={() => setScores(true)} />
     </div>
   );

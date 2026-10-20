@@ -148,3 +148,18 @@ test("Your tables brings me back, and finished matches appear in history", async
   await sheet.getByText(code).click();
   await expect(page.getByTestId("score-sheet")).toBeVisible();
 });
+
+test("see what each player has thrown", async ({ page }) => {
+  await startPractice(page, "3", "2");
+  // I play first (a tunnela deal changes the hint, so wait on the stock instead).
+  await expect(page.getByTestId("stock")).toBeEnabled({ timeout: 30_000 });
+  await page.getByTestId("stock").click();
+  await page.locator("[data-card]").first().click();
+  await page.getByTestId("discard-btn").click();
+  // The bot after me throws a card face up beside its avatar; tapping it lists every throw.
+  await expect(page.getByTestId("seat-last-thrown").first()).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("seat-open").first().click();
+  const dialog = page.getByTestId("thrown-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByTestId("thrown-row")).toHaveCount(3);
+});

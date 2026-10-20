@@ -20,11 +20,16 @@ interface Props {
   inline?: boolean;
   /** Which way the shown sets extend, so they stay on the table. */
   align?: "left" | "center" | "right";
+  /** Tapping the avatar opens the thrown-cards list. */
+  onOpen?: () => void;
 }
 
 /** An opponent on the rim of the table: avatar, a fan of their face-down cards, name and status. */
-export function Seat({ seat, active, dealer, progress, maal, size = 46, showSets = true, fanLeft, inline, align = "center" }: Props) {
+export function Seat({ seat, active, dealer, progress, maal, size = 46, showSets = true, fanLeft, inline, align = "center", onOpen }: Props) {
   const theme = useTheme();
+  // Older cached views may not have `thrown` yet.
+  const last = seat.thrown?.at(-1);
+  const lastCw = Math.max(16, Math.round(size * 0.36));
   const fan = Math.min(5, Math.max(1, Math.round(seat.cardCount / 5)));
   const setCw = Math.max(16, Math.round(size * 0.4));
   // Built once per size, so the memoised card backs don't re-render on every table update.
@@ -42,7 +47,13 @@ export function Seat({ seat, active, dealer, progress, maal, size = 46, showSets
   );
   return (
     <div className={cn("relative flex items-center", inline ? "flex-row gap-6" : "flex-col")} data-testid="seat" data-active={active || undefined}>
-      <div className="relative">
+      <button
+        type="button"
+        className="relative block rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+        onClick={onOpen}
+        aria-label={`${seat.name}: see thrown cards`}
+        data-testid="seat-open"
+      >
         <Avatar
           name={seat.name}
           index={seat.avatar}
@@ -66,7 +77,17 @@ export function Seat({ seat, active, dealer, progress, maal, size = 46, showSets
           <span className={cn("absolute -bottom-1 rounded-full", fanLeft ? "-left-2" : "-right-2", " bg-[#0b1713] px-1.5 text-[10px] font-bold tabular-nums leading-4 text-white ring-1 ring-white/15")}>{seat.cardCount}</span>
         </div>
         )}
-      </div>
+        {/* Their last throw, face up on the other side of the avatar */}
+        {last && (
+          <div
+            className={cn("pointer-events-none absolute bottom-0", fanLeft ? "-right-4" : "-left-4")}
+            style={{ transform: `rotate(${fanLeft ? 8 : -8}deg)` }}
+            data-testid="seat-last-thrown"
+          >
+            <PlayingCard id={last.card} width={lastCw} maal={maal} dim={last.taken} className="!shadow-sm" />
+          </div>
+        )}
+      </button>
       <div
         className={cn(
           !inline && "mt-1.5",
