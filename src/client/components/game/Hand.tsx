@@ -8,6 +8,8 @@ interface Props {
   maal: CardId | null;
   selected: Set<CardId>;
   drawn: CardId | null;
+  /** Cards to highlight (e.g. tunnels about to be shown). */
+  glow?: Set<CardId>;
   cardWidth: number;
   onToggle(id: CardId): void;
   onReorder(order: CardId[]): void;
@@ -30,7 +32,7 @@ interface Drag {
  * The player's hand: cards overlap to fit the width (two rows on narrow screens).
  * Tap to select, drag sideways to rearrange, flick up to throw.
  */
-export function Hand({ cards, maal, selected, drawn, cardWidth, onToggle, onReorder, onSwipeUp, dealKey }: Props) {
+export function Hand({ cards, maal, selected, drawn, glow, cardWidth, onToggle, onReorder, onSwipeUp, dealKey }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(360);
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -162,7 +164,7 @@ export function Hand({ cards, maal, selected, drawn, cardWidth, onToggle, onReor
               className={cn(drawn === id || dealing ? "motion-safe:animate-card-in" : "")}
               style={dealing ? { animationDelay: `${i * 22}ms` } : undefined}
             >
-              <PlayingCard id={id} width={cw} maal={maal} selected={selected.has(id)} className={dragging ? "shadow-lift" : ""} />
+              <PlayingCard id={id} width={cw} maal={maal} selected={selected.has(id)} glow={glow?.has(id)} className={dragging ? "shadow-lift" : ""} />
             </div>
             {drawn === id && (
               <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-gold px-1.5 py-[1px] text-[9px] font-extrabold uppercase tracking-wide text-[#2a1d00] shadow">

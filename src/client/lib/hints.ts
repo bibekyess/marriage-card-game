@@ -1,5 +1,5 @@
 import { CardId, maalKind, MaalKind, sortBySuit } from "../../shared/cards";
-import { completesPure, findDublees, findPureSets, isTunnel } from "../../shared/melds";
+import { completesPure, findDubleeShow, findDublees, findPureSets, findShow, isTunnel } from "../../shared/melds";
 import type { TableView } from "../../shared/protocol";
 import { dubleesAllowed } from "../../shared/settings";
 
@@ -20,8 +20,6 @@ export interface Hints {
   pureSets: CardId[][];
   dublees: CardId[][];
   dubleeOk: boolean;
-  canShowPure: boolean;
-  canShowDublee: boolean;
   /** Pure sets still needed to see the maal. */
   setsNeeded: number;
   canDeclare: boolean;
@@ -58,13 +56,60 @@ export function computeHints(v: TableView): Hints {
     pureSets,
     dublees,
     dubleeOk,
-    canShowPure: myTurn && !seen && pureSets.length >= setsNeeded,
-    canShowDublee: myTurn && !seen && dubleeOk && setsNeeded === 3 && dublees.length >= 7,
     setsNeeded,
     canDeclare: discardPhase && v.canDeclare,
     finishDiscard: v.finishDiscard,
     canPickDiscard,
   };
+}
+
+export interface ShowState {
+  /** The button can be tapped: the selected cards make a valid show. */
+  enabled: boolean;
+  route: "pure" | "dublee";
+  label: string;
+  /** Why the button is disabled, or what to do next. */
+  reason: string;
+  /** Cards the app found for a valid show, for "Select for me". */
+  suggestion: CardId[] | null;
+}
+
+/**
+ * The Show button, worked out from the player's own selection: the app never picks the cards
+ * by itself, it only explains what is missing and can suggest a selection.
+ */
+export function computeShowState(v: TableView, h: Hints, selected: Set<CardId>, active: boolean): ShowState | null {
+  if (v.status !== "playing" || h.myIndex < 0 || h.seen) return null;
+  const need = h.setsNeeded;
+  const pureCards = need * 3;
+  const dubleeOpen = h.dubleeOk && need === 3;
+  const sel = [...selected];
+  const done = 3 - need + Math.min(h.pureSets.length, need);
+  if (!active) return { enabled: false, route: "pure", label: `Show · ${done}/3`, reason: h.myTurn ? "Reconnecting…" : "Wait for your turn to show.", suggestion: null };
+
+  if (sel.length === pureCards && findShow(v.hand, sel, need))
+    return { enabled: true, route: "pure", label: `Show ${need} pure`, reason: "Tap Show to see the maal.", suggestion: null };
+  if (dubleeOpen && sel.length === 14 && findDubleeShow(v.hand, sel))
+    return { enabled: true, route: "dublee", label: "Show 7 dublees", reason: "Tap Show to see the maal.", suggestion: null };
+
+  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  const enoughPure = h.pureSets.length >= need;
+  const enoughDublee = dubleeOpen && h.dublees.length >= 7;
+  if (enoughPure || enoughDublee) {
+    const route = enoughPure ? "pure" : "dublee";
+    const count = route === "pure" ? pureCards : 14;
+    const sets = route === "pure" ? plural(need, "pure set") : "7 dublees";
+    return {
+      enabled: false,
+      route,
+      label: `Show · ${sel.length}/${count}`,
+      reason: sel.length === count ? `Those ${count} cards aren't ${sets}.` : `Select the ${count} cards of your ${sets}, then tap Show.`,
+      suggestion: route === "pure" ? h.pureSets.slice(0, need).flat() : h.dublees.slice(0, 7).flat(),
+    };
+  }
+  const missing = need - h.pureSets.length;
+  const orDublee = dubleeOpen ? ` (or ${plural(7 - h.dublees.length, "more dublee")})` : "";
+  return { enabled: false, route: "pure", label: `Show · ${done}/3`, reason: `You need ${plural(missing, "more pure set")}${orDublee} to see the maal.`, suggestion: null };
 }
 
 /** Put complete sets first (pure sets / dublees, or the winning layout), then the rest by suit. */

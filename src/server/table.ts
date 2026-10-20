@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { BotView, choosePlay, chooseDiscard, chooseDraw } from "../shared/bot";
-import { cardLabel, CardId, faceKey, fullDeck, HAND_SIZE, isCardId, shuffle } from "../shared/cards";
+import { cardLabel, CardId, fullDeck, HAND_SIZE, isCardId, shuffle } from "../shared/cards";
 import {
   allDubleeFinishes,
   allFinishes,
@@ -9,6 +9,7 @@ import {
   findDubleeShow,
   findFinish,
   findShow,
+  findTunnels,
   Finish,
 } from "../shared/melds";
 import { maalPoints, scoreRound } from "../shared/scoring";
@@ -89,12 +90,6 @@ export const cleanName = (n: unknown) =>
     .join("")
     .trim() || "Player";
 
-/** Every tunnel (three identical cards) in a hand. */
-function tunnelsIn(hand: CardId[]): CardId[][] {
-  const by = new Map<string, CardId[]>();
-  for (const c of hand) by.set(faceKey(c), [...(by.get(faceKey(c)) || []), c]);
-  return [...by.values()].filter((x) => x.length >= 3).map((x) => x.slice(0, 3));
-}
 
 export type NextStep = { kind: "bot" | "timeout"; at: number } | null;
 
@@ -445,7 +440,7 @@ export class Table {
   private canOpenTunnels(id: string) {
     const g = this.s.game;
     if (!g || this.s.status !== "playing" || this.s.seats[g.turn]?.id !== id || g.phase !== "draw") return false;
-    return !g.started?.[id] && !g.seen[id] && !g.opened?.[id] && tunnelsIn(g.hands[id] ?? []).length > 0;
+    return !g.started?.[id] && !g.seen[id] && !g.opened?.[id] && findTunnels(g.hands[id] ?? []).length > 0;
   }
 
   /** Before their first draw, a player may lay down every tunnel they were dealt. Each counts as a pure set. */
@@ -453,7 +448,7 @@ export class Table {
     const g = this.requireTurn(id, "draw");
     if (g.started?.[id]) fail("Tunnels can only be shown before your first draw.");
     if (g.seen[id] || g.opened?.[id]) fail("You've already shown your tunnels.");
-    const tunnels = tunnelsIn(g.hands[id]);
+    const tunnels = findTunnels(g.hands[id]);
     if (!tunnels.length) fail("You don't have a tunnel to show.");
     const used = new Set(tunnels.flat());
     g.hands[id] = g.hands[id].filter((c) => !used.has(c));

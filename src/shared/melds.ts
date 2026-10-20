@@ -213,6 +213,13 @@ export function findShow(hand: CardId[], selected: CardId[] = [], want = 3): Car
   return sets.length >= want ? sets : null;
 }
 
+/** Every tunnel (three identical cards) in a hand. */
+export function findTunnels(hand: CardId[]): CardId[][] {
+  const by = new Map<string, CardId[]>();
+  for (const c of hand) by.set(faceKey(c), [...(by.get(faceKey(c)) || []), c]);
+  return [...by.values()].filter((x) => x.length >= 3).map((x) => x.slice(0, 3));
+}
+
 /** All disjoint identical pairs in the hand. */
 export function findDublees(hand: CardId[]): CardId[][] {
   const by = new Map<string, CardId[]>();

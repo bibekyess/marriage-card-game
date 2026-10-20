@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownUp, ArrowUp, BarChart3, Eye, Layers, Menu, Sparkles, Trophy, WifiOff } from "lucide-react";
+import { ArrowDownUp, ArrowUp, BarChart3, Eye, Layers, Menu, Sparkles, Trophy, WandSparkles, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Hand } from "@/components/game/Hand";
 import { Piles } from "@/components/game/Piles";
 import { Seat } from "@/components/game/Seat";
@@ -9,7 +10,7 @@ import { PlayingCard } from "@/components/game/PlayingCard";
 import { Avatar } from "@/components/game/Avatar";
 import { FeltPattern, TableDecor, THEME_FELT } from "@/components/theme/decor";
 import { useTheme } from "@/lib/themes";
-import { computeHints, groupedOrder } from "@/lib/hints";
+import { computeHints, computeShowState, groupedOrder } from "@/lib/hints";
 import { nameOf, roundLabel, signed, totals } from "@/lib/format";
 import { act } from "@/lib/store";
 import { sfx } from "@/lib/sound";
@@ -18,7 +19,7 @@ import { RoundResult } from "./RoundResult";
 import { ScoreSheet } from "./ScoreSheet";
 import { MenuSheet } from "./MenuSheet";
 import { card, CardId, cardLabel, sortByRank, sortBySuit } from "../../shared/cards";
-import { MELD_LABEL, meldType } from "../../shared/melds";
+import { findTunnels, MELD_LABEL, meldType } from "../../shared/melds";
 import type { TableView } from "../../shared/protocol";
 import { dubleesAllowed, MAX_PLAYERS } from "../../shared/settings";
 
@@ -177,20 +178,26 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   const discardPhase = connected && h.myTurn && v.phase === "discard";
   const one = selected.size === 1 ? [...selected][0] : null;
   const turnName = v.seats[v.turn]?.name;
+  const showState = seated && !me?.autoplay ? computeShowState(v, h, selected, connected && h.myTurn) : null;
+  const tunnels = canDraw && v.canOpenTunnels ? findTunnels(v.hand) : [];
+  const tunnelGlow = new Set(tunnels.flat());
 
   let hint = "";
   if (!playing) hint = v.status === "matchEnd" ? "Match over" : "Round over";
   else if (!seated)
     hint = `You're watching${v.seats.length >= MAX_PLAYERS ? " — the table is full" : " — you'll be dealt in next round"}. ${turnName}'s turn.`;
   else if (me?.autoplay) hint = "A bot is playing for you — open the menu to take back control";
-  else if (canDraw && v.canOpenTunnels) hint = "You can show your tunnela before drawing";
-  else if (canDraw && (h.canShowPure || h.canShowDublee)) hint = "You can show and see the maal, or draw";
+  else if (canDraw && v.canOpenTunnels) hint = "Show your tunnela before you draw — they only score if shown now";
+  else if (discardPhase && h.canDeclare) hint = "You can finish — tap Declare!";
+  else if ((canDraw || discardPhase) && showState?.enabled) hint = `Ready — tap Show to see the maal${canDraw ? ", or draw" : ""}`;
+  else if ((canDraw || discardPhase) && showState?.suggestion)
+    hint = `You can see the maal — select your sets and tap Show, or ${canDraw ? "draw" : "throw a card"}`;
   else if (canDraw) hint = h.canPickDiscard ? "Your turn — draw from the stock or take the discard" : "Your turn — draw from the stock";
-  else if (discardPhase) hint = h.canDeclare ? "You can finish — tap Declare!" : h.canShowPure || h.canShowDublee ? "You can show and see the maal" : "Pick a card to throw";
+  else if (discardPhase) hint = "Pick a card to throw";
   else hint = `${turnName} is playing…`;
 
   const discard = (c: CardId) => run("discard", { card: c });
-  const show = (route: "pure" | "dublee") => run("show", { route, cards: selected.size === (route === "pure" ? h.setsNeeded * 3 : 14) ? [...selected] : [] }).then((ok) => ok && setSelected(new Set()));
+  const show = (route: "pure" | "dublee") => run("show", { route, cards: [...selected] }).then((ok) => ok && setSelected(new Set()));
   const declare = () => run("declare", { discard: one ?? h.finishDiscard });
 
   const myTotal = seated ? totals(v)[v.you] ?? 0 : 0;
@@ -222,25 +229,46 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   );
 
   const btn = vp.w < 520 ? "default" : "lg";
-  const primary = discardPhase || canDraw ? (
+  const primary =
     canDraw && v.canOpenTunnels ? (
-      <Button size={btn} variant="gold" onClick={() => run("openTunnels")} data-testid="open-tunnels">
-        <Sparkles /> Show tunnela
+      <Button size={btn} variant="gold" onClick={() => run("openTunnels")} data-testid="open-tunnels" className="animate-pulse-ring">
+        <Sparkles /> Show {tunnels.length} tunnela
       </Button>
     ) : discardPhase && h.canDeclare ? (
       <Button size={btn} variant="gold" onClick={declare} data-testid="declare" className="animate-pulse-ring">
         <Trophy /> Declare
       </Button>
-    ) : !h.seen && (h.canShowPure || selected.size === h.setsNeeded * 3) ? (
-      <Button size={btn} variant="gold" onClick={() => show("pure")} data-testid="show-pure">
-        <Sparkles /> {vp.w < 520 ? "Show" : `Show ${h.setsNeeded} pure`}
-      </Button>
-    ) : !h.seen && h.canShowDublee ? (
-      <Button size={btn} variant="gold" onClick={() => show("dublee")} data-testid="show-dublee">
-        <Sparkles /> {vp.w < 520 ? "Show" : "Show 7 dublees"}
-      </Button>
-    ) : null
-  ) : null;
+    ) : showState ? (
+      <>
+        {showState.suggestion && (
+          <Button size={btn} variant="secondary" className={toolBtn} onClick={() => setSelected(new Set(showState.suggestion))} data-testid="select-sets">
+            <WandSparkles /> {vp.w < 520 ? "Select" : "Select for me"}
+          </Button>
+        )}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            {/* A disabled button gets no events, so the wrapper explains why on hover or tap. */}
+            <span
+              className="inline-flex"
+              tabIndex={showState.enabled ? -1 : 0}
+              onPointerUp={(e) => !showState.enabled && e.pointerType !== "mouse" && toast(showState.reason, { id: "show-reason" })}
+            >
+              <Button
+                size={btn}
+                variant={showState.enabled ? "gold" : "outline"}
+                disabled={!showState.enabled}
+                onClick={() => show(showState.route)}
+                className={showState.enabled ? "animate-pulse-ring" : "border-gold/40 text-gold/80"}
+                data-testid="show"
+              >
+                <Sparkles /> {showState.label}
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>{showState.reason}</TooltipContent>
+        </Tooltip>
+      </>
+    ) : null;
 
   return (
     <div className="relative flex h-[100dvh] flex-col overflow-hidden" style={{ background: THEME_FELT[theme].page }}>
@@ -397,6 +425,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
               </Button>
               {primary}
               {discardPhase &&
+                selected.size <= 1 &&
                 (!one || one === v.picked ? (
                   <Button size={btn} variant="outline" className="border-gold/50 text-gold/90 disabled:opacity-80" disabled data-testid="discard-btn">
                     {one === v.picked && one ? "Can't throw back" : "Select a card"}
@@ -414,6 +443,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
               maal={v.maal}
               selected={selected}
               drawn={v.drawn}
+              glow={tunnelGlow}
               cardWidth={handCw}
               onToggle={toggle}
               onReorder={arrange}
