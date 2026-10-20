@@ -369,6 +369,59 @@ describe("review fixes", () => {
     expect(table.s.game!.hands[host]).toEqual(hand);
   });
 
+  describe("declaring with the player's own sets", () => {
+    const SETS = [["9C0", "9C1", "9C2"], ["9H0", "9D0", "9S0"], ["4H0", "5H0", "6H0"], ["KC0", "KD0", "KS0"]];
+    const ready = (route: "pure" | "dublee" = "pure", hand = [...SETS.flat(), "3C1"]) => {
+      const { table, host } = twoPlayer();
+      const g = table.s.game!;
+      g.turn = table.s.seats.findIndex((x) => x.id === host);
+      g.maal = "2S0";
+      g.seen[host] = route;
+      g.shown[host] = [["AD0", "2D0", "3D0"], ["7S0", "8S0", "9S2"], ["JH0", "QH0", "KH0"]];
+      g.hands[host] = hand;
+      g.phase = "discard";
+      g.picked = null;
+      return { table, host, g };
+    };
+
+    it("wins with valid sets and the last card thrown", () => {
+      const { table, host } = ready();
+      table.declare(host, "3C1", SETS);
+      expect(table.s.status).toBe("roundEnd");
+      const me = table.s.reveal!.players.find((p) => p.id === host)!;
+      expect(table.s.reveal!.winnerId).toBe(host);
+      expect(me.groups).toEqual(SETS);
+      expect(table.s.reveal!.discard).toBe("3C1");
+    });
+
+    it("refuses a set that isn't valid", () => {
+      const { table, host } = ready();
+      const bad = [SETS[0], SETS[1], ["4H0", "5H0", "3C1"], SETS[3]];
+      expect(() => table.declare(host, "6H0", bad)).toThrow(/isn't a valid set/);
+      expect(table.s.status).toBe("playing");
+    });
+
+    it("refuses when cards are left over or not in the hand", () => {
+      const { table, host } = ready();
+      expect(() => table.declare(host, "3C1", SETS.slice(0, 3))).toThrow(/every card except/);
+      expect(() => table.declare(host, "3C1", [...SETS.slice(0, 3), ["KC0", "KD0", "KH2"]])).toThrow(/aren't all in your hand/);
+      expect(() => table.declare(host, "3C1", [...SETS, ["9C0"]])).toThrow(/aren't all in your hand/);
+    });
+
+    it("won't throw back the card just picked up", () => {
+      const { table, host, g } = ready();
+      g.picked = "3C1";
+      expect(() => table.declare(host, "3C1", SETS)).toThrow(/throw back/);
+    });
+
+    it("wins the dublee route with an 8th dublee", () => {
+      const { table, host } = ready("dublee", ["AH0", "AH1", "3C0", "5D0", "7S1", "9H2", "JC0", "QD1"]);
+      expect(() => table.declare(host, "3C0", [["AH0", "5D0"]])).toThrow(/one more dublee/);
+      table.declare(host, "3C0", [["AH0", "AH1"]]);
+      expect(table.s.reveal!.winnerId).toBe(host);
+    });
+  });
+
   it("timeout auto-play declares a finished hand", () => {
     const { table, host } = twoPlayer();
     const g = table.s.game!;

@@ -88,7 +88,7 @@ export function Hand({ cards, groups = NO_GROUPS, onGroupTap, onUngroup, maal, s
     }
     return out;
   }, [cards, groupOf, n]);
-  const gap = groups.length ? Math.round(cw * 0.3) : 0;
+  const gap = groups.length ? Math.round(cw * 0.45) : 0;
   const tagH = groups.length ? 20 : 0;
 
   const layout = useMemo(() => {

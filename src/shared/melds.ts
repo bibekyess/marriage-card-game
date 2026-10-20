@@ -1,4 +1,4 @@
-import { card, CardId, faceKey, isWild } from "./cards";
+import { card, CardId, cardLabel, faceKey, isWild } from "./cards";
 
 // ---------- single-group checks ----------
 
@@ -307,6 +307,31 @@ export function findDubleeFinish(
     if (pairs.length) return { discard: d, groups: [pairs[0]] };
   }
   return null;
+}
+
+/**
+ * Check a finish the player laid down themselves: their sets plus the card they throw.
+ * Returns the finish, or the reason it isn't one.
+ */
+export function checkFinish(
+  hand: CardId[],
+  maal: CardId | null,
+  route: "pure" | "dublee",
+  groups: CardId[][],
+  discard: CardId,
+  forbidden?: CardId | null,
+): Finish | string {
+  const all = [...groups.flat(), discard];
+  if (hasDuplicates(all) || !all.every((c) => hand.includes(c))) return "Those cards aren't all in your hand.";
+  if (discard === forbidden) return "You can't throw back the card you just picked up.";
+  if (route === "dublee") {
+    if (groups.length !== 1 || meldType(groups[0], null) !== "dublee") return "Lay down one more dublee to finish.";
+    return { discard, groups };
+  }
+  if (all.length !== hand.length) return "Lay down every card except the one you throw.";
+  const bad = groups.find((g) => !isMeld(g, maal));
+  if (bad) return `${bad.map(cardLabel).join(" ")} isn't a valid set.`;
+  return { discard, groups };
 }
 
 /** Whether a picked-up card completes a pure set (or dublee) with cards already in hand. */

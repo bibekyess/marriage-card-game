@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { addGroup, afterDrag, cleanGroups, groupsFirst, setOrder } from "../src/client/lib/groups";
+import { addGroup, afterDrag, cleanGroups, groupsFirst, readingOrder } from "../src/client/lib/groups";
 
 describe("hand groups", () => {
   it("orders a set for reading, ace last in an ace-high run", () => {
-    expect(setOrder(["KH0", "AH0", "QH0"])).toEqual(["QH0", "KH0", "AH0"]);
-    expect(setOrder(["3D0", "AD0", "2D0"])).toEqual(["AD0", "2D0", "3D0"]);
+    expect(readingOrder(["KH0", "AH0", "QH0"])).toEqual(["QH0", "KH0", "AH0"]);
+    expect(readingOrder(["3D0", "AD0", "2D0"])).toEqual(["AD0", "2D0", "3D0"]);
   });
 
   it("puts groups first and keeps the rest in order", () => {
@@ -13,7 +13,7 @@ describe("hand groups", () => {
 
   it("moves cards out of an old group when they join a new one", () => {
     const g = addGroup([["4H0", "5H0", "6H0", "7H0"]], ["7H0", "7S0", "7D0"]);
-    expect(g).toEqual([["4H0", "5H0", "6H0"], setOrder(["7H0", "7S0", "7D0"])]);
+    expect(g).toEqual([["4H0", "5H0", "6H0"], readingOrder(["7H0", "7S0", "7D0"])]);
   });
 
   it("drops groups whose cards left the hand", () => {

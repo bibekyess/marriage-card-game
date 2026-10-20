@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownUp, ArrowUp, BarChart3, Eye, Layers, Menu, Sparkles, Trophy, WandSparkles, WifiOff } from "lucide-react";
+import { ArrowDownUp, ArrowDownToLine, ArrowUp, BarChart3, Eye, Layers, Menu, Sparkles, Trophy, WandSparkles, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -11,7 +11,7 @@ import { Avatar } from "@/components/game/Avatar";
 import { FeltPattern, TableDecor, THEME_FELT } from "@/components/theme/decor";
 import { useTheme } from "@/lib/themes";
 import { computeHints, computeShowState, groupedOrder } from "@/lib/hints";
-import { addGroup, afterDrag, cleanGroups, GROUP_TAG, groupsFirst, loadGroups, saveGroups } from "@/lib/groups";
+import { addGroup, afterDrag, cleanGroups, GROUP_TAG, groupsFirst, loadGroups, saveGroups, readingOrder } from "@/lib/groups";
 import { nameOf, roundLabel, signed, totals } from "@/lib/format";
 import { act } from "@/lib/store";
 import { sfx } from "@/lib/sound";
@@ -20,7 +20,7 @@ import { RoundResult } from "./RoundResult";
 import { ScoreSheet } from "./ScoreSheet";
 import { MenuSheet } from "./MenuSheet";
 import { CardId, cardLabel, sortByRank, sortBySuit } from "../../shared/cards";
-import { findTunnels, MELD_LABEL, meldType } from "../../shared/melds";
+import { checkFinish, findDubleeFinish, findFinish, findTunnels, isMeld, MELD_LABEL, meldType } from "../../shared/melds";
 import type { TableView } from "../../shared/protocol";
 import { dubleesAllowed, MAX_PLAYERS } from "../../shared/settings";
 
@@ -130,6 +130,9 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
       return n;
     });
 
+  // Sets laid down while finishing. They stay in the browser until the player wins.
+  const [laid, setLaid] = useState<CardId[][]>([]);
+
   // The selected cards make a set (and aren't already one group): offer to group them.
   const selectedMeld = useMemo(() => {
     if (selected.size < 2 || selected.size > 13) return null;
@@ -207,6 +210,44 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   const discardPhase = connected && h.myTurn && v.phase === "discard";
   const one = selected.size === 1 ? [...selected][0] : null;
   const turnName = v.seats[v.turn]?.name;
+
+  // Finishing: lay down your sets one by one, then throw the last card to win.
+  const finishing = discardPhase && !!h.seen;
+  useEffect(() => {
+    if (!finishing) setLaid((l) => (l.length ? [] : l));
+  }, [finishing]);
+  const laidNow = finishing ? laid.filter((g) => g.every((c) => v.hand.includes(c))) : [];
+  const laidSet = new Set(laidNow.flat());
+  const remaining = v.hand.filter((c) => !laidSet.has(c));
+  const sel = [...selected].filter((c) => !laidSet.has(c));
+  const layType =
+    !finishing || sel.length < 2
+      ? null
+      : h.seen === "dublee"
+        ? !laidNow.length && meldType(sel, null) === "dublee"
+          ? "dublee"
+          : null
+        : sel.length >= 3 && isMeld(sel, v.maal)
+          ? meldType(sel, v.maal)
+          : null;
+  const layDown = () => {
+    setLaid([...laidNow, readingOrder(sel)]);
+    setSelected(new Set());
+  };
+  const winCard = !finishing || !laidNow.length ? null : h.seen === "dublee" ? (one && !laidSet.has(one) ? one : null) : remaining.length === 1 ? remaining[0] : null;
+  const win = () => {
+    if (!winCard || !h.seen) return;
+    const f = checkFinish(v.hand, v.maal, h.seen, laidNow, winCard, v.picked);
+    if (typeof f === "string") return void toast.error(f);
+    run("declare", { discard: winCard, groups: laidNow });
+  };
+  const arrangeForMe = () => {
+    const opts = { preferDiscard: v.finishDiscard ?? undefined, forbidden: v.picked };
+    const f = h.seen === "dublee" ? findDubleeFinish(v.hand, opts) : findFinish(v.hand, v.maal, opts);
+    if (!f) return void toast.error("Your cards don't make complete sets yet.");
+    setLaid(f.groups.map(readingOrder));
+    setSelected(new Set([f.discard]));
+  };
   const showState = seated && !me?.autoplay ? computeShowState(v, h, selected, connected && h.myTurn) : null;
   const tunnels = canDraw && v.canOpenTunnels ? findTunnels(v.hand) : [];
   const tunnelGlow = new Set(tunnels.flat());
@@ -217,7 +258,9 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
     hint = `You're watching${v.seats.length >= MAX_PLAYERS ? " — the table is full" : " — you'll be dealt in next round"}. ${turnName}'s turn.`;
   else if (me?.autoplay) hint = "A bot is playing for you — open the menu to take back control";
   else if (canDraw && v.canOpenTunnels) hint = "Show your tunnela before you draw — they only score if shown now";
-  else if (discardPhase && h.canDeclare) hint = "You can finish — tap Declare!";
+  else if (finishing && winCard) hint = `Throw your last card to win!`;
+  else if (finishing && laidNow.length) hint = `${laidNow.length} set${laidNow.length > 1 ? "s" : ""} laid down — keep going, or tap a set to take it back`;
+  else if (discardPhase && h.canDeclare) hint = "You can finish — select a set and tap Lay down, or Arrange for me";
   else if ((canDraw || discardPhase) && showState?.enabled) hint = `Ready — tap Show to see the maal${canDraw ? ", or draw" : ""}`;
   else if ((canDraw || discardPhase) && showState?.suggestion)
     hint = `You can see the maal — select your sets and tap Show, or ${canDraw ? "draw" : "throw a card"}`;
@@ -227,7 +270,6 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
 
   const discard = (c: CardId) => run("discard", { card: c });
   const show = (route: "pure" | "dublee") => run("show", { route, cards: [...selected] }).then((ok) => ok && setSelected(new Set()));
-  const declare = () => run("declare", { discard: one ?? h.finishDiscard });
 
   const myTotal = seated ? totals(v)[v.you] ?? 0 : 0;
 
@@ -263,9 +305,13 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
       <Button size={btn} variant="gold" onClick={() => run("openTunnels")} data-testid="open-tunnels" className="animate-pulse-ring">
         <Sparkles /> Show {tunnels.length} tunnela
       </Button>
-    ) : discardPhase && h.canDeclare ? (
-      <Button size={btn} variant="gold" onClick={declare} data-testid="declare" className="animate-pulse-ring">
-        <Trophy /> Declare
+    ) : winCard ? (
+      <Button size={btn} variant="gold" onClick={win} data-testid="declare" className="animate-pulse-ring">
+        <Trophy /> {vp.w >= 400 ? `Discard ${cardLabel(winCard)} & win` : "Win"}
+      </Button>
+    ) : finishing && h.canDeclare ? (
+      <Button size={btn} variant="secondary" className={toolBtn} onClick={arrangeForMe} data-testid="arrange-for-me">
+        <WandSparkles /> {vp.w < 520 ? "Arrange" : "Arrange for me"}
       </Button>
     ) : showState ? (
       <>
@@ -430,7 +476,12 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
               </div>
             )}
             <div className="ml-auto flex items-center gap-1.5">
-              {selectedMeld && (
+              {layType && (
+                <Button size="sm" variant="gold" className="h-9" onClick={layDown} data-testid="lay-down">
+                  <ArrowDownToLine /> {vp.w < 520 ? "Lay down" : `Lay down · ${MELD_LABEL[layType]}`}
+                </Button>
+              )}
+              {!finishing && selectedMeld && (
                 <Button size="sm" variant="secondary" className={cn("h-9", toolBtn)} onClick={groupSelected} data-testid="group-selected">
                   <Layers /> {vp.w < 520 ? MELD_LABEL[selectedMeld] : `Group · ${MELD_LABEL[selectedMeld]}`}
                 </Button>
@@ -457,6 +508,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
               </Button>
               {primary}
               {discardPhase &&
+                !winCard &&
                 selected.size <= 1 &&
                 (!one || one === v.picked ? (
                   <Button size={btn} variant="outline" className="border-gold/50 text-gold/90 disabled:opacity-80" disabled data-testid="discard-btn">
@@ -469,10 +521,29 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
                 ))}
             </div>
           </div>
+          {laidNow.length > 0 && (
+            <div className="mx-auto flex max-w-[1180px] flex-wrap items-center justify-center gap-2 pb-1" data-testid="laid">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-gold/80">Laid down</span>
+              {laidNow.map((g, i) => (
+                <button
+                  key={g.join()}
+                  type="button"
+                  onClick={() => setLaid(laidNow.filter((_, j) => j !== i))}
+                  className="flex rounded-md bg-black/30 p-0.5 ring-1 ring-gold/40 transition hover:ring-gold"
+                  title="Take back"
+                  aria-label={`Take back ${g.map(cardLabel).join(" ")}`}
+                >
+                  {g.map((c, k) => (
+                    <PlayingCard key={c} id={c} width={Math.round(handCw * 0.6)} maal={v.maal} style={{ marginLeft: k ? -Math.round(handCw * 0.32) : 0 }} />
+                  ))}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="mx-auto max-w-[1180px]">
             <Hand
-              cards={handOrder}
-              groups={handGroups}
+              cards={laidNow.length ? handOrder.filter((c) => !laidSet.has(c)) : handOrder}
+              groups={laidNow.length ? handGroups.filter((g) => !g.cards.some((c) => laidSet.has(c))) : handGroups}
               onGroupTap={tapGroup}
               onUngroup={ungroup}
               maal={v.maal}

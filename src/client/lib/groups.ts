@@ -13,7 +13,7 @@ export const GROUP_TAG: Record<MeldType, string> = {
 };
 
 /** Cards of a set in reading order; ace-high runs (Q K A) keep the ace last. */
-export function setOrder(ids: CardId[]): CardId[] {
+export function readingOrder(ids: CardId[]): CardId[] {
   const set = sortByRank(ids);
   if (!set.some((c) => card(c).rank === 13)) return set;
   return [...set.filter((c) => card(c).rank !== 1), ...set.filter((c) => card(c).rank === 1)];
@@ -42,7 +42,7 @@ export function groupsFirst(order: CardId[], groups: CardId[][]): CardId[] {
 export function addGroup(groups: CardId[][], ids: CardId[]): CardId[][] {
   const taken = new Set(ids);
   const rest = groups.map((g) => g.filter((c) => !taken.has(c))).filter((g) => g.length >= 2);
-  return [...rest, setOrder(ids)];
+  return [...rest, readingOrder(ids)];
 }
 
 /**

@@ -415,7 +415,12 @@ export async function startServer(opts: ServerOptions) {
         t.show(id, (route === "dublee" ? "dublee" : "pure") as Route, p.cards === undefined ? [] : strArr(p.cards, "cards"));
       },
       openTunnels: (t, id) => t.openTunnels(id),
-      declare: (t, id, p) => t.declare(id, optStr(p.discard, "card", 20)),
+      declare: (t, id, p) =>
+        t.declare(
+          id,
+          optStr(p.discard, "card", 20),
+          p.groups === undefined ? undefined : Array.isArray(p.groups) && p.groups.length <= 21 ? p.groups.map((g) => strArr(g, "groups", 21)) : bad("Invalid groups."),
+        ),
       arrange: (t, id, p) => t.arrange(id, strArr(p.order, "order")),
       start: (t, id) => t.start(id),
       addBot: (t, id) => t.addBot(id),

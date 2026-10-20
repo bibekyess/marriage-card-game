@@ -4,6 +4,7 @@ import { cardLabel, CardId, fullDeck, HAND_SIZE, isCardId, shuffle } from "../sh
 import {
   allDubleeFinishes,
   allFinishes,
+  checkFinish,
   completesPure,
   findDubleeFinish,
   findDubleeShow,
@@ -491,10 +492,15 @@ export class Table {
     this.log(`${this.nameOf(id)} showed ${route === "dublee" ? "7 dublees" : `${need} pure set${need > 1 ? "s" : ""}`} and saw the maal.`);
   }
 
-  declare(id: string, preferDiscard?: CardId): void {
+  /** Finish the round. With `groups`, the player's own sets are checked; otherwise the best finish is found. */
+  declare(id: string, preferDiscard?: CardId, groups?: CardId[][]): void {
     const g = this.requireTurn(id, "discard");
     const route = g.seen[id] ?? fail("Show your sets and see the maal before declaring.");
     const hand = g.hands[id];
+    if (groups) {
+      const f = checkFinish(hand, g.maal, route, groups, preferDiscard ?? fail("Choose the card to throw."), g.picked);
+      return typeof f === "string" ? fail(f) : this.finishRound(id, route, f);
+    }
     const prefer = preferDiscard && hand.includes(preferDiscard) && preferDiscard !== g.picked ? preferDiscard : undefined;
     const opts = { preferDiscard: prefer, forbidden: g.picked };
     const f = prefer
