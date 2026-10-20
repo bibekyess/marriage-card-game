@@ -12,8 +12,8 @@ interface Props {
   cards: CardId[];
   /** The player's own groups; they sit apart from the rest, each with a tag. */
   groups?: HandGroup[];
-  onGroupTap?(index: number): void;
-  onUngroup?(index: number): void;
+  onGroupTap?(cards: CardId[]): void;
+  onUngroup?(cards: CardId[]): void;
   maal: CardId | null;
   selected: Set<CardId>;
   drawn: CardId | null;
@@ -162,7 +162,7 @@ export function Hand({ cards, groups = NO_GROUPS, onGroupTap, onUngroup, maal, s
   return (
     <div ref={ref} className="relative w-full touch-none" style={{ height: layout.height }} data-testid="hand">
       {!drag?.moved &&
-        groups.map((g, gi) => {
+        groups.map((g) => {
           const idx = g.cards.map((c) => cards.indexOf(c)).filter((i) => i >= 0);
           if (!idx.length) return null;
           const a = slot(Math.min(...idx)), b = slot(Math.max(...idx));
@@ -174,13 +174,13 @@ export function Hand({ cards, groups = NO_GROUPS, onGroupTap, onUngroup, maal, s
               style={{ left: a.x, top: a.y - tagH - 2, width: Math.max(w, 64), zIndex: 60 }}
               data-testid="group-tag"
             >
-              <button type="button" className="min-w-0 flex-1 truncate text-left" onClick={() => onGroupTap?.(gi)} title="Select this group">
+              <button type="button" className="min-w-0 flex-1 truncate text-left" onClick={() => onGroupTap?.(g.cards)} title="Select this group">
                 {g.label}
               </button>
               <button
                 type="button"
                 className="grid h-4 w-4 shrink-0 place-items-center rounded-full text-white/70 hover:bg-white/15 hover:text-white"
-                onClick={() => onUngroup?.(gi)}
+                onClick={() => onUngroup?.(g.cards)}
                 aria-label={`Ungroup ${g.label}`}
                 title="Ungroup"
               >

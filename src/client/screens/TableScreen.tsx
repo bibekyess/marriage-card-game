@@ -104,15 +104,15 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   };
 
   // The player's own groups for this round, kept in the browser.
-  const groupsKey = `${v.code}:${v.round}:${v.you}`;
-  const [groupState, setGroupState] = useState(() => ({ key: groupsKey, groups: loadGroups(v.code, v.round, v.you) }));
+  const groupsKey = `${v.code}:${v.matchStartedAt}:${v.round}:${v.you}`;
+  const [groupState, setGroupState] = useState(() => ({ key: groupsKey, groups: loadGroups(groupsKey) }));
   const groups = useMemo(
-    () => cleanGroups(groupState.key === groupsKey ? groupState.groups : loadGroups(v.code, v.round, v.you), v.hand),
-    [groupState, groupsKey, v.code, v.round, v.you, v.hand],
+    () => cleanGroups(groupState.key === groupsKey ? groupState.groups : loadGroups(groupsKey), v.hand),
+    [groupState, groupsKey, v.hand],
   );
   const arrangeGroups = (o: CardId[], gs: CardId[][]) => {
     setGroupState({ key: groupsKey, groups: gs });
-    saveGroups(v.code, v.round, v.you, gs);
+    saveGroups(groupsKey, gs);
     arrange(groupsFirst(o, gs));
   };
   const handOrder = useMemo(() => groupsFirst(order, groups), [order, groups]);
@@ -150,17 +150,14 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
     [groups, v.maal],
   );
   // Tapping a group's tag selects the whole group (or clears it if it's all selected).
-  const tapGroup = (gi: number) => {
-    const g = groups[gi];
-    if (!g) return;
+  const tapGroup = (g: CardId[]) =>
     setSelected((s) => {
       const n = new Set(s);
       const all = g.every((c) => n.has(c));
       g.forEach((c) => (all ? n.delete(c) : n.add(c)));
       return n;
     });
-  };
-  const ungroup = (gi: number) => arrangeGroups(handOrder, groups.filter((_, i) => i !== gi));
+  const ungroup = (g: CardId[]) => arrangeGroups(handOrder, groups.filter((x) => x.join() !== g.join()));
 
   const [sortMode, setSortMode] = useState<"suit" | "rank">("rank"); // first tap sorts by suit
   const [menu, setMenu] = useState(false);
@@ -254,7 +251,8 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
 
   // Tips use the bots' judgement on your own hand only. A tip is for this moment, so it clears on any change.
   const [tip, setTip] = useState<Tip | null>(null);
-  useEffect(() => setTip(null), [v.hand, v.phase, v.turn]);
+  const handKey = v.hand.join();
+  useEffect(() => setTip(null), [handKey, v.phase, v.turn]);
   const showTip = () => {
     let t: Tip;
     if (v.canOpenTunnels && canDraw) t = { text: "Show your tunnela first: they only score if you show them before drawing." };
@@ -582,7 +580,11 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
               glow={glow}
               cardWidth={handCw}
               onToggle={toggle}
-              onReorder={(o, moved) => arrangeGroups(o, moved ? afterDrag(groups, o, moved) : groups)}
+              onReorder={(o, moved) => {
+                // The hand only holds the cards not laid down; keep the laid ones in the order too.
+                const full = [...o, ...handOrder.filter((c) => laidSet.has(c))];
+                arrangeGroups(full, moved ? afterDrag(groups, full, moved) : groups);
+              }}
               onSwipeUp={discardPhase ? (c) => c !== v.picked && discard(c) : undefined}
               dealKey={`${v.code}:${v.round}`}
             />

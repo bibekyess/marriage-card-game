@@ -62,19 +62,20 @@ export function afterDrag(groups: CardId[][], next: CardId[], moved: CardId): Ca
     .filter((g) => g.length >= 2);
 }
 
-const storeKey = (code: string, round: number, you: string) => `mg.groups:${code}:${round}:${you}`;
+// Keyed by match too: a new match at the same table starts again at round 1.
+const storeKey = (key: string) => `mg.groups:${key}`;
 
-export function loadGroups(code: string, round: number, you: string): CardId[][] {
+export function loadGroups(key: string): CardId[][] {
   try {
-    const raw = JSON.parse(sessionStorage.getItem(storeKey(code, round, you)) || "[]");
+    const raw = JSON.parse(sessionStorage.getItem(storeKey(key)) || "[]");
     return Array.isArray(raw) ? raw.filter((g) => Array.isArray(g) && g.every((c) => typeof c === "string")) : [];
   } catch {
     return [];
   }
 }
 
-export function saveGroups(code: string, round: number, you: string, groups: CardId[][]) {
+export function saveGroups(key: string, groups: CardId[][]) {
   try {
-    sessionStorage.setItem(storeKey(code, round, you), JSON.stringify(groups));
+    sessionStorage.setItem(storeKey(key), JSON.stringify(groups));
   } catch {}
 }
