@@ -155,12 +155,19 @@ describe("socket server", () => {
     const srv = await server();
     const c = client(srv.port);
     const made = await c.call("create", { name: "Host", bots: 1 });
-    const res = await fetch(`http://localhost:${srv.port}/api/tables/${made.data.code}`);
-    const info = await res.json();
+    const status = (code: string, token: string) =>
+      fetch(`http://localhost:${srv.port}/api/tables/${code}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      }).then((r) => r.json());
+    const info = await status(made.data.code, made.data.token);
     expect(info).toMatchObject({ exists: true, status: "playing", round: 1, players: ["Host", "Anisha"] });
     expect(JSON.stringify(info)).not.toMatch(/token|hand/i);
-    const none = await (await fetch(`http://localhost:${srv.port}/api/tables/ZZZZ`)).json();
-    expect(none).toEqual({ exists: false });
+    // Without your seat token, or for an unknown code, nothing is revealed.
+    expect(await status(made.data.code, "wrong")).toEqual({ exists: false });
+    expect(await status("ZZZZ", made.data.token)).toEqual({ exists: false });
+    expect(await status(made.data.code.toLowerCase(), made.data.token)).toMatchObject({ exists: true });
   });
 
   it("tells people when a code doesn't exist", async () => {

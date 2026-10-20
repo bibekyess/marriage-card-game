@@ -30,7 +30,9 @@ test("play a turn, refresh, and keep the same seat and cards", async ({ page }) 
   const before = await cards.evaluateAll((els) => els.map((e) => e.getAttribute("data-card")).sort());
   expect(before).not.toContain(thrown);
   await page.reload();
-  await expect(page.getByTestId("hand")).toBeVisible();
+  // The cached table shows straight away while the live state is fetched.
+  await expect(page.getByTestId("hand")).toBeVisible({ timeout: 2000 });
+  await expect(page.getByText("Taking your seat…")).toHaveCount(0);
   await expect(page.locator("[data-card]")).toHaveCount(21);
   const after = await page.locator("[data-card]").evaluateAll((els) => els.map((e) => e.getAttribute("data-card")).sort());
   expect(after).toEqual(before);

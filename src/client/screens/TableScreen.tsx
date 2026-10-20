@@ -153,8 +153,9 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
     return Array.from({ length: n }, (_, i) => (start + 1 + i) % n).filter((i) => i !== h.myIndex);
   }, [v.seats.length, h.myIndex, seated]);
 
-  const canDraw = h.myTurn && v.phase === "draw";
-  const discardPhase = h.myTurn && v.phase === "discard";
+  // While showing the cached table after a refresh (or offline), wait for the live state before acting.
+  const canDraw = connected && h.myTurn && v.phase === "draw";
+  const discardPhase = connected && h.myTurn && v.phase === "discard";
   const one = selected.size === 1 ? [...selected][0] : null;
   const turnName = v.seats[v.turn]?.name;
 

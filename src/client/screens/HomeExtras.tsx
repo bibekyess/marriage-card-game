@@ -3,7 +3,8 @@ import { ChevronRight, History, PlayCircle, Trash2, Trophy } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { navigate } from "@/lib/router";
-import { forgetSession, savedSessions } from "@/lib/session";
+import { savedSessions } from "@/lib/session";
+import { forgetTable } from "@/lib/store";
 import { deleteMatch, listMatches, MatchRecord, viewFromRecord } from "@/lib/history";
 import { settlement, signed, totals } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -24,15 +25,18 @@ export function YourTables() {
 
   useEffect(() => {
     let live = true;
-    const codes = savedSessions().map((s) => s.code);
+    const sessions = savedSessions();
     Promise.all(
-      codes.map(async (code) => {
+      sessions.map(async ({ code, token }) => {
         try {
-          const r = await fetch(`/api/tables/${code}`);
+          const r = await fetch(`/api/tables/${code}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) });
           const info = (await r.json()) as TableStatusInfo;
-          // The server says the table is gone: drop the stale seat. Network trouble: keep it.
-          if (!info.exists) forgetSession(code);
-          return { code, info };
+          // Only a clear "gone" from the server drops the seat; errors and network trouble keep it.
+          if (r.ok && info.exists === false) {
+            forgetTable(code);
+            return { code, info };
+          }
+          return { code, info: r.ok && info.exists ? info : ({ exists: true } as TableStatusInfo) };
         } catch {
           return { code, info: { exists: true } as TableStatusInfo };
         }

@@ -221,8 +221,8 @@ function MarigoldLine({ stroke = GOLD, sw = 1.3 }: { stroke?: string; sw?: numbe
     ));
   return (
     <g fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-      {ring(14, 0, 50, 8, 18)}
-      {ring(10, 18, 38, 7, 11)}
+      {ring(14, 0, 50, 6.5, 18)}
+      {ring(10, 18, 38, 5.5, 11)}
       {ring(7, 0, 25, 6, 5)}
       <circle r={3.4} />
     </g>
@@ -449,7 +449,7 @@ function GlowDecor({ compact }: { compact: boolean }) {
               width: `${b.size}cqmin`,
               height: `${b.size}cqmin`,
               background:
-                "radial-gradient(circle, rgba(255,226,150,.55) 0%, rgba(255,208,110,.38) 48%, rgba(255,196,90,.6) 64%, rgba(255,190,80,0) 72%)",
+                "radial-gradient(circle, rgba(255,226,150,.65) 0%, rgba(255,208,110,.45) 48%, rgba(255,196,90,.7) 64%, rgba(255,190,80,0) 72%)",
               "--o": b.o,
               "--d": `${b.dur}s`,
               "--dl": `${b.delay}s`,
@@ -553,7 +553,7 @@ export function FeltPattern({ theme }: { theme: ThemeId }) {
           aria-hidden="true"
         >
           <g opacity={0.12}>
-            <Mandala sw={0.7} fillOpacity={0.35} />
+            <Mandala sw={0.7} fillOpacity={0.12} />
           </g>
         </svg>
       </div>
@@ -660,7 +660,7 @@ export function CardBackArt({ theme }: { theme: ThemeId }) {
             <stop offset="0" stopColor="#fff8e8" />
             <stop offset="1" stopColor="#cfe7f6" />
           </linearGradient>
-          <pattern id={`${id}p`} width="30" height="40" patternUnits="userSpaceOnUse">
+          <pattern id={`${id}p`} x="6" y="6" width="30" height="40" patternUnits="userSpaceOnUse">
             <KiteMark x={8} y={12} s={9} rot={-12} c={["#ff8a1f", "#ffcb2e", "#e63946", "#ffcb2e"]} outline={navy} spar="rgba(255,255,255,.8)" ow={0.07} />
             <path d="M7 21 q3 3 0 6" stroke={navy} strokeWidth="0.8" fill="none" strokeLinecap="round" />
             <KiteMark x={23} y={32} s={9} rot={14} c={["#14b2a6", "#ffffff", "#e63946", "#ff8a1f"]} outline={navy} spar="rgba(255,255,255,.8)" ow={0.07} />
@@ -688,13 +688,13 @@ export function CardBackArt({ theme }: { theme: ThemeId }) {
         <rect x="5" y="5" width="90" height="132" rx="5" fill="none" stroke={GOLD} strokeWidth="1.5" />
         <g transform="translate(0 3)" fill="none" stroke={GOLD} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
           {/* leaves */}
-          {[-62, -32, 32, 62].map((a) => (
+          {[-72, -46, 46, 72].map((a) => (
             <path key={a} d="M0 0 Q-8.5 -13 0 -27 Q8.5 -13 0 0Z" transform={`translate(50 62) rotate(${a})`} fill={GOLD} fillOpacity="0.12" />
           ))}
           <path d="M0 0 Q-7 -11 0 -23 Q7 -11 0 0Z" transform="translate(50 62)" fill={GOLD} fillOpacity="0.12" />
           {/* coconut */}
-          <ellipse cx="50" cy="44" rx="7.2" ry="8.6" fill="#072319" />
-          <path d="M45.5 41.5 q4.5 -3.4 9 0" strokeWidth="1.2" />
+          <ellipse cx="50" cy="45" rx="8.2" ry="9.6" fill="#072319" />
+          <path d="M45 42.5 q5 -3.8 10 0" strokeWidth="1.2" />
           {/* pot */}
           <path d="M35 62 H65 V68 H35 Z" fill="#072319" />
           <path d="M38 68 C26 73 25 99 38 107 Q50 113 62 107 C75 99 74 73 62 68" fill={GOLD} fillOpacity="0.1" />

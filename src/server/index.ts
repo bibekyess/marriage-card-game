@@ -29,18 +29,28 @@ export async function startServer(opts: ServerOptions) {
 
   app.disable("x-powered-by");
   app.get("/api/health", (_req, res) => res.json({ ok: true, tables: tables.size }));
-  // Public, coarse status for a table code (knowing the code is what lets you join anyway).
-  app.get("/api/tables/:code", (req, res) => {
-    const code = String(req.params.code).toUpperCase();
-    const t = /^[A-Z]{4}$/.test(code) ? tables.get(code) : undefined;
+  // Status of a table you hold a seat at ("Your tables" on the home screen). Requires your seat
+  // token, so table codes can't be scanned for names; rate-limited per address.
+  const statusHits = new Map<string, number[]>();
+  app.post("/api/tables/:code", express.json({ limit: "2kb" }), (req, res) => {
+    const ip = req.ip ?? "?";
+    const now = Date.now();
+    const hits = (statusHits.get(ip) ?? []).filter((x) => now - x < 60_000);
+    if (hits.length >= 60) return res.status(429).json({ error: "Too many requests" });
+    hits.push(now);
+    statusHits.set(ip, hits);
+    if (statusHits.size > 10_000) statusHits.clear();
     res.set("Cache-Control", "no-store");
-    if (!t) return res.json({ exists: false });
+    const code = String(req.params.code).toUpperCase();
+    const token = typeof req.body?.token === "string" ? req.body.token : "";
+    const t = /^[A-Z]{4}$/.test(code) ? tables.get(code) : undefined;
+    if (!t || !token || !t.byToken(token)) return res.json({ exists: false });
     res.json({
       exists: true,
       status: t.s.status,
       round: t.s.round,
       rounds: t.s.settings.rounds,
-      players: t.s.seats.map((x) => x.name),
+      players: t.s.seats.filter((x) => !x.left).map((x) => x.name),
     });
   });
   app.use("/api", (_req, res) => res.status(404).json({ ok: false, error: "Not found" }));

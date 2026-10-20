@@ -29,7 +29,7 @@ function read(): MatchRecord[] {
 
 function write(list: MatchRecord[]) {
   try {
-    localStorage.setItem(KEY, JSON.stringify(list.slice(0, MAX)));
+    localStorage.setItem(KEY, JSON.stringify([...list].sort((a, b) => b.endedAt - a.endedAt).slice(0, MAX)));
   } catch {}
 }
 
@@ -38,7 +38,12 @@ export const listMatches = (): MatchRecord[] => read().sort((a, b) => b.endedAt 
 /** Save (or update) the match this view belongs to. Called when a match ends. */
 export function saveMatch(v: TableView) {
   if (!v.rounds.length) return;
+  // Spectators didn't play: nothing of theirs to remember.
+  if (!v.rounds.some((r) => v.you in r.points)) return;
   const id = `${v.code}-${v.matchStartedAt}`;
+  const existing = read();
+  // Saved already (e.g. the final screen was refreshed): keep the record as it was at the end.
+  if (existing.some((m) => m.id === id)) return;
   const ids = new Set(v.rounds.flatMap((r) => Object.keys(r.points)));
   const seat = (pid: string) => v.seats.find((s) => s.id === pid);
   const rec: MatchRecord = {
@@ -56,11 +61,7 @@ export function saveMatch(v: TableView) {
     rounds: v.rounds,
     settings: v.settings,
   };
-  const list = read().filter((m) => m.id !== id);
-  // Keep the original end time if we've already saved this match (e.g. on a refresh).
-  const prev = read().find((m) => m.id === id);
-  if (prev) rec.endedAt = prev.endedAt;
-  write([rec, ...list]);
+  write([rec, ...existing]);
 }
 
 export function deleteMatch(id: string) {

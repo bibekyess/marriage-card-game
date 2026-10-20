@@ -50,7 +50,7 @@ export function App() {
   else if (game.session?.code !== code) screen = <JoinScreen code={code} lost={game.lost?.code === code ? game.lost.error : null} />;
   else if (!game.view) screen = <Loading text="Taking your seat…" />;
   else if (game.view.status === "lobby") screen = <Lobby view={game.view} />;
-  else screen = <TableScreen view={game.view} connected={game.connected} />;
+  else screen = <TableScreen view={game.view} connected={game.connected && game.live} />;
 
   return (
     <TooltipProvider delayDuration={300}>
