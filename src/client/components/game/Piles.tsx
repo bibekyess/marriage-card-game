@@ -21,7 +21,11 @@ interface Props {
 
 function Caption({ children, active }: { children: React.ReactNode; active?: boolean }) {
   return (
-    <span className={cn("mt-1.5 text-[10px] font-bold uppercase tracking-[0.18em]", active ? "text-white" : "text-white/55")}>{children}</span>
+    <span
+      className={cn("mt-1.5 text-[10px] font-bold uppercase tracking-[0.18em] [text-shadow:0_1px_3px_rgba(0,0,0,.7)]", active ? "text-white" : "text-white/65")}
+    >
+      {children}
+    </span>
   );
 }
 

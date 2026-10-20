@@ -25,7 +25,7 @@ export function ThemePicker({ compact }: { compact?: boolean }) {
               <ThemeSwatch theme={t.id} />
             </div>
             <div className="bg-black/40 px-2.5 py-1.5">
-              <div className="truncate text-xs font-bold">{t.name}</div>
+              <div className={cn("text-xs font-bold leading-tight", compact ? "line-clamp-2" : "truncate")}>{t.name}</div>
               {!compact && <div className="truncate text-[10px] text-muted-foreground">{t.tagline}</div>}
             </div>
             {on && (

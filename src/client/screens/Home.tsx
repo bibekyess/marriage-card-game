@@ -59,14 +59,14 @@ export function Home() {
             <span className="text-lg font-extrabold tracking-tight">Marriage</span>
           </div>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" onClick={() => setLook(true)}>
-              <Palette /> Look
+            <Button variant="ghost" size="sm" onClick={() => setLook(true)} aria-label="Table look">
+              <Palette /> <span className="hidden min-[480px]:inline">Look</span>
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setHistory(true)}>
-              <History /> History
+            <Button variant="ghost" size="sm" onClick={() => setHistory(true)} aria-label="History">
+              <History /> <span className="hidden min-[480px]:inline">History</span>
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setRules(true)}>
-              <BookOpen /> Rules
+            <Button variant="ghost" size="sm" onClick={() => setRules(true)} aria-label="Rules">
+              <BookOpen /> <span className="hidden min-[480px]:inline">Rules</span>
             </Button>
           </div>
         </header>

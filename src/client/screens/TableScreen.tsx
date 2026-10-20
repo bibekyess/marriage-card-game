@@ -188,7 +188,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
             ? festive
               ? "bg-[#ff9f2e]/20 text-[#ffd36e] ring-1 ring-[#ffb347]/60 transition-colors"
               : "bg-gold/15 text-gold ring-1 ring-gold/40 transition-colors"
-            : "bg-white/[0.06] text-white/75",
+            : "bg-black/45 text-white/80 backdrop-blur-sm",
       )}
       data-testid="hint"
     >
@@ -218,13 +218,13 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
       <TableDecor theme={theme} />
       {/* Top bar */}
       <header className="relative z-10 flex h-12 shrink-0 items-center gap-2 px-2 sm:px-4">
-        <Button size="icon" variant="ghost" onClick={() => setMenu(true)} aria-label="Menu">
+        <Button size="icon" variant="ghost" className="bg-black/45 backdrop-blur-sm hover:bg-black/60" onClick={() => setMenu(true)} aria-label="Menu">
           <Menu />
         </Button>
         <button
           onClick={() => setScores(true)}
           aria-label="Scoreboard"
-          className="flex shrink-0 items-center gap-2 rounded-full border border-gold/40 bg-black/30 px-3 py-1.5 text-xs font-bold transition-colors hover:bg-black/50 sm:text-sm"
+          className="flex shrink-0 items-center gap-2 rounded-full border border-gold/40 bg-black/55 px-3 py-1.5 text-xs font-bold backdrop-blur-sm transition-colors hover:bg-black/70 sm:text-sm"
           data-testid="score-pill"
         >
           {theme === "royal" ? <span className="h-2.5 w-2 rounded-full bg-[#d7192a] ring-1 ring-[#ffd36e]" aria-hidden /> : <BarChart3 className="h-4 w-4 text-gold" />}
@@ -247,7 +247,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
             {secondsLeft}s
           </span>
         )}
-        <span className="shrink-0 rounded-full bg-black/30 px-2.5 py-1 text-xs font-bold tracking-[0.2em] text-muted-foreground">{v.code}</span>
+        <span className="shrink-0 rounded-full bg-black/55 px-2.5 py-1 text-xs font-bold tracking-[0.2em] text-white/70 backdrop-blur-sm">{v.code}</span>
       </header>
 
       {/* Felt with opponents on the rim */}
@@ -262,7 +262,10 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
               boxShadow: `inset 0 0 0 6px ${THEME_FELT[theme].rim}, inset 0 0 0 8px #c9a14a66, inset 0 10px 60px rgba(0,0,0,.45), 0 30px 60px -20px rgba(0,0,0,.8)`,
             }}
           >
-            <FeltPattern theme={theme} />
+            {/* On short screens the Glow greeting would cross the pile labels; keep it faint. */}
+            <div className={cn("absolute inset-0", theme === "glow" && shortScreen && "opacity-40")}>
+              <FeltPattern theme={theme} />
+            </div>
           </div>
           {others.map((idx, k) => {
             const spot = (landscape ? SPOTS : SPOTS_PORTRAIT)[others.length]?.[k] ?? [50, 0];
