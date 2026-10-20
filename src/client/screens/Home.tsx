@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BookOpen, Bot, LogIn, Plus, Spade } from "lucide-react";
+import { BookOpen, Bot, History, LogIn, Palette, Plus, Spade } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,8 @@ import { pref, saveName, savedName, setPref } from "@/lib/session";
 import { createTable, joinTable } from "@/lib/store";
 import { PlayingCard } from "@/components/game/PlayingCard";
 import { RulesSheet } from "./RulesSheet";
+import { HistorySheet, YourTables } from "./HomeExtras";
+import { ThemePicker } from "./ThemePicker";
 import { RulesForm } from "./RulesForm";
 import { DEFAULT_SETTINGS, sanitizeSettings, Settings } from "../../shared/settings";
 
@@ -19,6 +21,8 @@ export function Home() {
   const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState<null | "create" | "practice">(null);
   const [rules, setRules] = useState(false);
+  const [history, setHistory] = useState(false);
+  const [look, setLook] = useState(false);
   const [settings, setSettings] = useState<Settings>(() => sanitizeSettings(pref("settings", DEFAULT_SETTINGS)));
   const [bots, setBots] = useState(3);
 
@@ -54,9 +58,17 @@ export function Home() {
             </div>
             <span className="text-lg font-extrabold tracking-tight">Marriage</span>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => setRules(true)}>
-            <BookOpen /> Rules
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" onClick={() => setLook(true)}>
+              <Palette /> Look
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setHistory(true)}>
+              <History /> History
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setRules(true)}>
+              <BookOpen /> Rules
+            </Button>
+          </div>
         </header>
 
         <main className="grid flex-1 items-center gap-10 py-8 md:grid-cols-[1.1fr_1fr]">
@@ -83,6 +95,7 @@ export function Home() {
             </div>
           </section>
 
+          <div className="grid gap-4">
           <section className="surface p-5 sm:p-6">
             <Label htmlFor="name" className="text-xs uppercase tracking-wider text-muted-foreground">
               Your name
@@ -128,6 +141,8 @@ export function Home() {
               </Button>
             </div>
           </section>
+          <YourTables />
+          </div>
         </main>
       </div>
 
@@ -176,6 +191,16 @@ export function Home() {
       </Dialog>
 
       <RulesSheet open={rules} onOpenChange={setRules} />
+      <HistorySheet open={history} onOpenChange={setHistory} />
+      <Dialog open={look} onOpenChange={setLook}>
+        <DialogContent className="max-h-[94dvh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Table look</DialogTitle>
+            <DialogDescription>Choose how the table looks on this device. Everyone at the table can pick their own.</DialogDescription>
+          </DialogHeader>
+          <ThemePicker />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

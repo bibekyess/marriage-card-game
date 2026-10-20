@@ -8,6 +8,7 @@ import { navigate } from "@/lib/router";
 import { act, leaveTable } from "@/lib/store";
 import { hapticsOn, setHaptics, setSound, soundOn } from "@/lib/sound";
 import { RulesSheet } from "./RulesSheet";
+import { ThemePicker } from "./ThemePicker";
 import { shareInvite } from "./Lobby";
 import type { TableView } from "../../shared/protocol";
 
@@ -47,6 +48,11 @@ export function MenuSheet({ view: v, open, onOpenChange, onScores }: { view: Tab
               <Item icon={Bot} label={me.autoplay ? "Take back control" : "Let a bot play for me"} onClick={() => (close(), run("autoplay", { on: !me.autoplay }))} />
             )}
           </nav>
+          <Separator className="my-2" />
+          <div className="px-3 pb-1">
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Table look</p>
+            <ThemePicker compact />
+          </div>
           <Separator className="my-2" />
           <div className="space-y-1 px-3">
             <label className="flex items-center justify-between py-1.5 text-sm font-semibold">

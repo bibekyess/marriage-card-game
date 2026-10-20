@@ -29,6 +29,20 @@ export async function startServer(opts: ServerOptions) {
 
   app.disable("x-powered-by");
   app.get("/api/health", (_req, res) => res.json({ ok: true, tables: tables.size }));
+  // Public, coarse status for a table code (knowing the code is what lets you join anyway).
+  app.get("/api/tables/:code", (req, res) => {
+    const code = String(req.params.code).toUpperCase();
+    const t = /^[A-Z]{4}$/.test(code) ? tables.get(code) : undefined;
+    res.set("Cache-Control", "no-store");
+    if (!t) return res.json({ exists: false });
+    res.json({
+      exists: true,
+      status: t.s.status,
+      round: t.s.round,
+      rounds: t.s.settings.rounds,
+      players: t.s.seats.map((x) => x.name),
+    });
+  });
   app.use("/api", (_req, res) => res.status(404).json({ ok: false, error: "Not found" }));
 
   // Serve the built client (production). In development Vite serves it.

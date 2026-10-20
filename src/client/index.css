@@ -89,3 +89,43 @@
     padding-bottom: max(env(safe-area-inset-bottom), 12px);
   }
 }
+
+/* ---------- Themes (per-viewer, html[data-theme]) ---------- */
+html[data-theme="royal"] .app-bg {
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(158, 27, 50, 0.38), transparent 60%),
+    radial-gradient(900px 500px at 110% 110%, rgba(245, 184, 61, 0.12), transparent 60%),
+    #14040a;
+}
+html[data-theme="kite"] .app-bg {
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(31, 111, 163, 0.45), transparent 60%),
+    radial-gradient(900px 500px at 110% 110%, rgba(255, 179, 71, 0.12), transparent 60%),
+    #061a2b;
+}
+html[data-theme="glow"] .app-bg {
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(23, 121, 90, 0.3), transparent 60%),
+    radial-gradient(900px 600px at 90% 100%, rgba(245, 184, 61, 0.14), transparent 60%),
+    #050d0a;
+}
+html[data-theme="royal"] {
+  --background: 345 60% 5%;
+  --card: 345 35% 9%;
+  --popover: 345 32% 11%;
+  --secondary: 345 25% 15%;
+  --muted: 345 22% 13%;
+  --accent: 345 25% 18%;
+  --border: 345 20% 22%;
+  --input: 345 20% 24%;
+}
+html[data-theme="kite"] {
+  --background: 210 70% 6%;
+  --card: 210 45% 11%;
+  --popover: 210 42% 13%;
+  --secondary: 210 35% 17%;
+  --muted: 210 30% 15%;
+  --accent: 210 35% 20%;
+  --border: 210 28% 24%;
+  --input: 210 28% 26%;
+}

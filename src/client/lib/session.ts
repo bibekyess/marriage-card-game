@@ -41,3 +41,18 @@ export function pref<T>(key: string, fallback: T): T {
   }
 }
 export const setPref = (key: string, v: unknown) => write("mg.pref." + key, JSON.stringify(v));
+
+/** Every table this device holds a seat at. */
+export function savedSessions(): Session[] {
+  const out: Session[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k?.startsWith("mg.session.")) {
+        const s = sessionFor(k.slice("mg.session.".length));
+        if (s) out.push(s);
+      }
+    }
+  } catch {}
+  return out;
+}

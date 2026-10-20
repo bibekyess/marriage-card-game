@@ -3,6 +3,29 @@ import { io, Socket } from "socket.io-client";
 import type { Ack, Session, TableView } from "../../shared/protocol";
 import type { Settings } from "../../shared/settings";
 import { forgetSession, saveSession, sessionFor } from "./session";
+import { saveMatch } from "./history";
+
+// The last view of each table is kept so a refresh shows your cards instantly while reconnecting.
+const viewKey = (code: string) => "mg.view." + code.toUpperCase();
+function cacheView(v: TableView) {
+  try {
+    localStorage.setItem(viewKey(v.code), JSON.stringify(v));
+  } catch {}
+}
+function cachedView(code: string, playerId: string): TableView | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(viewKey(code)) ?? "null") as TableView | null;
+    return v && v.code === code.toUpperCase() && v.you === playerId ? v : null;
+  } catch {
+    return null;
+  }
+}
+function forgetTable(code: string) {
+  forgetSession(code);
+  try {
+    localStorage.removeItem(viewKey(code));
+  } catch {}
+}
 
 // One socket for the app. The store holds the current table view and connection state;
 // components subscribe with useGame().
@@ -41,10 +64,12 @@ socket.on("state", (view: TableView) => {
   if (!s || view.code !== s.code || view.you !== s.playerId) return;
   // Removed by the host, or left from another tab: our seat no longer exists.
   if (!view.seats.some((x) => x.id === view.you) && !view.spectators.some((x) => x.id === view.you)) {
-    forgetSession(s.code);
+    forgetTable(s.code);
     set({ session: null, view: null, lost: { code: s.code, error: "You're no longer at this table." } });
     return;
   }
+  cacheView(view);
+  if (view.status === "matchEnd") saveMatch(view);
   set({ view });
 });
 
@@ -66,14 +91,16 @@ function adopt(s: Session) {
 export async function resume(code: string): Promise<boolean> {
   const s = sessionFor(code);
   if (!s) return false;
-  set({ session: s });
+  // Show the last known table straight away; the live state replaces it once connected.
+  set({ session: s, view: state.view?.code === s.code ? state.view : cachedView(s.code, s.playerId) });
   const r = await call<Session>("resume", { code: s.code, token: s.token });
   if (r.ok && r.data) {
     adopt(r.data);
     return true;
   }
-  if (r.error && !r.error.startsWith("Couldn't reach")) {
-    forgetSession(code);
+  // Only give up the seat when the server says it's gone, never because the network failed.
+  if (r.error && /No table|no longer valid/.test(r.error)) {
+    forgetTable(code);
     set({ session: null, view: null, lost: { code, error: r.error } });
   }
   return false;
@@ -97,7 +124,7 @@ export const joinTable = (code: string, name: string) => entering("join", { code
 export async function leaveTable() {
   const code = state.session?.code;
   await call("leave");
-  if (code) forgetSession(code);
+  if (code) forgetTable(code);
   set({ session: null, view: null });
 }
 

@@ -3,6 +3,8 @@ import { card, CardId, isRed, rankLabel, SUIT_NAME, SUIT_SYMBOL } from "../../..
 import { cn } from "@/lib/utils";
 import { MAAL_NAME, MAAL_TAG } from "@/lib/hints";
 import { maalKind } from "../../../shared/cards";
+import { CardBackArt } from "@/components/theme/decor";
+import { useTheme } from "@/lib/themes";
 
 interface Props {
   id?: CardId | null; // null/undefined = face down
@@ -57,21 +59,18 @@ function CourtEmblem({ rank, color }: { rank: number; color: string }) {
 
 /** A vector playing card. Size is driven by `width`; everything scales from it. */
 export const PlayingCard = memo(function PlayingCard({ id, width = 56, maal, selected, dim, glow, className, style }: Props) {
+  const theme = useTheme();
   const h = Math.round(width * 1.42);
   const base: React.CSSProperties = { width, height: h, borderRadius: Math.max(5, width * 0.11), ...style };
 
   if (!id) {
     return (
       <div
-        className={cn("card-back relative shrink-0 select-none shadow-card", className)}
+        className={cn("relative shrink-0 select-none overflow-hidden border-2 border-[#fbfaf6] shadow-card", className)}
         style={base}
         aria-label="Face-down card"
       >
-
-        <svg viewBox="0 0 40 56" className="absolute inset-[14%] h-[72%] w-[72%] opacity-80" aria-hidden>
-          <path d="M20 4 L36 28 L20 52 L4 28 Z" fill="none" stroke="rgba(245,184,61,.7)" strokeWidth="1.4" />
-          <path d="M20 14 L29 28 L20 42 L11 28 Z" fill="rgba(245,184,61,.18)" stroke="rgba(245,184,61,.5)" strokeWidth="1" />
-        </svg>
+        <CardBackArt theme={theme} />
       </div>
     );
   }

@@ -152,3 +152,24 @@ Each phase ends with an **Opus review** (correctness and code quality) and a fix
 - **Rule variations between families** → the house rules are settings, not code paths.
 - **Mobile Safari audio** → unlock WebAudio on the first tap.
 - **Small screens with 22 cards** → computed overlap, two-row hand in portrait.
+
+---
+
+## 7. Round 2 (requested after v1)
+
+### Phase 6 — Match history & seat persistence (logic)
+- **Match history (per device)**: when a match ends, save a summary in `localStorage` (date, table code, players, points per round, totals, currency/rate, transfers). Home → "Match history" lists them; each opens the full scoreboard + settle-up and can re-share the scorecard.
+- **Seat persistence**: seat tokens already live in `localStorage`; additionally cache the last table view per code so a refresh renders instantly while reconnecting, add "Your tables" (resume) on Home using a public `GET /api/tables/:code` status check, and never forget a seat on a network error (only when the server says the seat/table is gone).
+- Tests: unit tests for history storage, e2e for "refresh → instant table" and "Home → Your tables → resume".
+
+### Phase 7 — Themes (UI)
+Per-viewer theme picker (Menu + Home), saved in `localStorage`, applied as `data-theme` with CSS variables + decoration components. Decorations stay out of the play area; `prefers-reduced-motion` respected.
+| Theme | Felt & page | Decorations | Card back | Maal / turn |
+|---|---|---|---|---|
+| Classic | current green | — | green/gold diamond | gold glow |
+| Royal Red & Gold | deep crimson felt with gold mandala pattern | marigold + jamara garland across the top | crimson with gold mandala | gold border + jamara icon; orange-yellow turn pill, tika-dot pills |
+| Azure Kite Festival | deep blue/teal felt | paper buntings along the top, kites in corners | colourful kite pattern | festive yellow turn pill, tika badges on avatars |
+| Festival Glow | dark emerald | gold bokeh drifting, "Vijaya Dashami Subhakamana" watermark, gold marigold corners | dark green with gold kalash line-art | soft gold halo |
+
+### Phase 8 — Screenshot review & release
+Screenshots for every theme at phone landscape/portrait + desktop; Opus design + code review; fixes; push.

@@ -1,6 +1,8 @@
 import { cn } from "@/lib/utils";
 import { PlayingCard } from "./PlayingCard";
 import { cardLabel } from "../../../shared/cards";
+import { MaalAccent } from "@/components/theme/decor";
+import { useTheme } from "@/lib/themes";
 
 interface Props {
   cw: number;
@@ -25,6 +27,7 @@ function Caption({ children, active }: { children: React.ReactNode; active?: boo
 
 /** Stock, maal and discard pile in the middle of the felt. */
 export function Piles({ cw, stockCount, discardTop, discardUnder, maal, maalHidden, canDraw, canPickDiscard, thrownBy, onDraw }: Props) {
+  const theme = useTheme();
   const canPick = canPickDiscard && !!discardTop;
   return (
     <div className="flex items-end justify-center gap-[clamp(14px,4vw,40px)]">
@@ -47,7 +50,12 @@ export function Piles({ cw, stockCount, discardTop, discardUnder, maal, maalHidd
       </button>
 
       <div className="flex flex-col items-center" aria-label={maal ? "Maal card" : "Maal card, hidden until you show"}>
-        <div className={cn("relative", maal && "drop-shadow-[0_0_14px_rgba(245,184,61,.55)]")}>
+        <div className={cn("relative rounded-lg", maal && "drop-shadow-[0_0_14px_rgba(245,184,61,.55)]", maal && theme !== "classic" && "ring-2 ring-gold/80")}>
+          {maal && (
+            <span className="absolute -left-2.5 -top-3 z-10">
+              <MaalAccent theme={theme} size={Math.round(cw * 0.42)} />
+            </span>
+          )}
           {maal ? (
             <PlayingCard id={maal} width={cw * 0.86} maal={maal} />
           ) : (

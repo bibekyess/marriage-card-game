@@ -151,6 +151,18 @@ describe("socket server", () => {
     for (const r of end.rounds) expect(Object.values(r.points).reduce((a, b) => a + b, 0)).toBe(0);
   }, 30000);
 
+  it("reports a table's public status for 'Your tables'", async () => {
+    const srv = await server();
+    const c = client(srv.port);
+    const made = await c.call("create", { name: "Host", bots: 1 });
+    const res = await fetch(`http://localhost:${srv.port}/api/tables/${made.data.code}`);
+    const info = await res.json();
+    expect(info).toMatchObject({ exists: true, status: "playing", round: 1, players: ["Host", "Anisha"] });
+    expect(JSON.stringify(info)).not.toMatch(/token|hand/i);
+    const none = await (await fetch(`http://localhost:${srv.port}/api/tables/ZZZZ`)).json();
+    expect(none).toEqual({ exists: false });
+  });
+
   it("tells people when a code doesn't exist", async () => {
     const srv = await server();
     const c = client(srv.port);

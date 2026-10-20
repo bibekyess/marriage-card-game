@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import type { SeatView } from "../../../shared/protocol";
 import { Avatar } from "./Avatar";
 import { PlayingCard } from "./PlayingCard";
+import { useTheme } from "@/lib/themes";
 
 interface Props {
   seat: SeatView;
@@ -22,12 +23,22 @@ interface Props {
 
 /** An opponent on the rim of the table: avatar, a fan of their face-down cards, name and status. */
 export function Seat({ seat, active, dealer, progress, maal, size = 46, showSets = true, fanLeft, inline, align = "center" }: Props) {
+  const theme = useTheme();
   const fan = Math.min(5, Math.max(1, Math.round(seat.cardCount / 5)));
   const setCw = Math.max(16, Math.round(size * 0.4));
   return (
     <div className={cn("relative flex items-center", inline ? "flex-row gap-6" : "flex-col")} data-testid="seat" data-active={active || undefined}>
       <div className="relative">
-        <Avatar name={seat.name} index={seat.avatar} size={size} isBot={seat.isBot || seat.autoplay} offline={!seat.connected} active={active} progress={active ? progress : null} />
+        <Avatar
+          name={seat.name}
+          index={seat.avatar}
+          size={size}
+          isBot={seat.isBot || seat.autoplay}
+          offline={!seat.connected}
+          active={active}
+          progress={active ? progress : null}
+          tika={theme === "royal" || theme === "kite"}
+        />
         {dealer && (
           <span className="absolute -left-1 -top-1 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-white text-[10px] font-extrabold text-[#0b2a1f] shadow ring-2 ring-[#0b2a1f]" title="Dealer">
             D

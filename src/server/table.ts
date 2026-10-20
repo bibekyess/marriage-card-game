@@ -67,6 +67,8 @@ export interface TableState {
   log: LogEntry[];
   /** Names of everyone who has sat here this match (for scoreboards after people leave). */
   names?: Record<string, string>;
+  /** When the current match's first round was dealt (identifies the match in history). */
+  matchStartedAt?: number;
 }
 
 export const BOT_NAMES = ["Anisha", "Rohan", "Maya", "Sujan", "Kabir", "Pema"];
@@ -344,6 +346,7 @@ export class Table {
   private deal(rand?: (n: number) => number) {
     const n = this.s.seats.length;
     this.s.round += 1;
+    if (this.s.round === 1) this.s.matchStartedAt = Date.now();
     // Round 1: the last seat deals, so the first seat plays first. Then the deal moves round the table.
     // If the previous dealer has left, the seat that moved into their place deals.
     const prev = this.s.dealerId ? this.s.seats.findIndex((x) => x.id === this.s.dealerId) : -1;
@@ -707,6 +710,7 @@ export class Table {
       log: s.log.slice(-15),
       spectators: s.spectators.map((x) => ({ id: x.id, name: x.name })),
       names,
+      matchStartedAt: s.matchStartedAt ?? s.createdAt,
       serverNow: Date.now(),
       canDeclare: !!finish,
       finishDiscard: finish?.discard ?? null,

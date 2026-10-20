@@ -7,6 +7,8 @@ import { Piles } from "@/components/game/Piles";
 import { Seat } from "@/components/game/Seat";
 import { PlayingCard } from "@/components/game/PlayingCard";
 import { Avatar } from "@/components/game/Avatar";
+import { FeltPattern, TableDecor, THEME_FELT } from "@/components/theme/decor";
+import { useTheme } from "@/lib/themes";
 import { computeHints, groupedOrder } from "@/lib/hints";
 import { nameOf, roundLabel, signed, totals } from "@/lib/format";
 import { act } from "@/lib/store";
@@ -66,6 +68,10 @@ const SPOTS: Record<number, [number, number][]> = {
 
 export function TableScreen({ view: v, connected }: { view: TableView; connected: boolean }) {
   const vp = useViewport();
+  const theme = useTheme();
+  // Royal & Kite use a warm marigold turn colour; Classic & Glow keep gold.
+  const festive = theme === "royal" || theme === "kite";
+  const turnGrad = festive ? "from-[#ffcf4a] to-[#ff8a1f]" : "from-[#ffd77a] to-[#e9a224]";
   const landscape = vp.w > vp.h;
   const h = useMemo(() => computeHints(v), [v]);
   const me = v.seats[h.myIndex];
@@ -176,9 +182,11 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
       className={cn(
         "line-clamp-2 rounded-full px-4 py-1.5 text-center text-xs font-semibold leading-snug sm:text-sm",
         turnFlash && shortScreen
-          ? "bg-gradient-to-b from-[#ffd77a] to-[#e9a224] font-extrabold text-[#2a1d00] transition-colors"
+          ? cn("bg-gradient-to-b font-extrabold text-[#2a1d00] transition-colors", turnGrad)
           : h.myTurn
-            ? "bg-gold/15 text-gold ring-1 ring-gold/40 transition-colors"
+            ? festive
+              ? "bg-[#ff9f2e]/20 text-[#ffd36e] ring-1 ring-[#ffb347]/60 transition-colors"
+              : "bg-gold/15 text-gold ring-1 ring-gold/40 transition-colors"
             : "bg-white/[0.06] text-white/75",
       )}
       data-testid="hint"
@@ -205,9 +213,10 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   ) : null;
 
   return (
-    <div className="flex h-[100dvh] flex-col overflow-hidden bg-[radial-gradient(120%_80%_at_50%_45%,#0b2219_0%,#06110d_70%)]">
+    <div className="relative flex h-[100dvh] flex-col overflow-hidden" style={{ background: THEME_FELT[theme].page }}>
+      <TableDecor theme={theme} />
       {/* Top bar */}
-      <header className="flex h-12 shrink-0 items-center gap-2 px-2 sm:px-4">
+      <header className="relative z-10 flex h-12 shrink-0 items-center gap-2 px-2 sm:px-4">
         <Button size="icon" variant="ghost" onClick={() => setMenu(true)} aria-label="Menu">
           <Menu />
         </Button>
@@ -217,7 +226,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
           className="flex shrink-0 items-center gap-2 rounded-full border border-gold/40 bg-black/30 px-3 py-1.5 text-xs font-bold transition-colors hover:bg-black/50 sm:text-sm"
           data-testid="score-pill"
         >
-          <BarChart3 className="h-4 w-4 text-gold" />
+          {theme === "royal" ? <span className="h-2.5 w-2 rounded-full bg-[#d7192a] ring-1 ring-[#ffd36e]" aria-hidden /> : <BarChart3 className="h-4 w-4 text-gold" />}
           <span className={cn(seated && "hidden min-[400px]:inline")}>{roundLabel(v)}</span>
           {seated && (
             <>
@@ -243,7 +252,17 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
       {/* Felt with opponents on the rim */}
       <div className={cn("relative flex min-h-0 flex-1 px-3 pb-2 pt-1 sm:px-8", landscape ? "items-center" : "items-start pt-4")}>
         <div className="relative mx-auto h-full w-full max-w-[1100px]" style={{ maxHeight: landscape ? Math.max(240, (vp.w - 32) * 0.62) : (vp.w - 24) * 1.2 }}>
-          <div className="felt absolute inset-x-0 rounded-[50%/46%]" style={{ top: seatSize * 0.55, bottom: 4 }} />
+          <div
+            className="felt absolute inset-x-0 overflow-hidden rounded-[50%/46%]"
+            style={{
+              top: seatSize * 0.55,
+              bottom: 4,
+              background: THEME_FELT[theme].felt,
+              boxShadow: `inset 0 0 0 6px ${THEME_FELT[theme].rim}, inset 0 0 0 8px #c9a14a66, inset 0 10px 60px rgba(0,0,0,.45), 0 30px 60px -20px rgba(0,0,0,.8)`,
+            }}
+          >
+            <FeltPattern theme={theme} />
+          </div>
           {others.map((idx, k) => {
             const spot = (landscape ? SPOTS : SPOTS_PORTRAIT)[others.length]?.[k] ?? [50, 0];
             return (
@@ -265,7 +284,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
           })}
           {turnFlash && !shortScreen && (
             <div className="pointer-events-none absolute inset-x-0 top-[26%] z-20 flex justify-center">
-              <span className="rounded-full bg-gradient-to-b from-[#ffd77a] to-[#e9a224] px-5 py-1.5 text-sm font-extrabold text-[#2a1d00] shadow-lift motion-safe:animate-card-in">
+              <span className={cn("rounded-full bg-gradient-to-b px-5 py-1.5 text-sm font-extrabold text-[#2a1d00] shadow-lift motion-safe:animate-card-in", turnGrad)}>
                 Your turn
               </span>
             </div>
@@ -287,7 +306,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
         </div>
       </div>
 
-      {!wide && <div className="flex justify-center px-3 pb-1">{hintPill}</div>}
+      {!wide && <div className="relative z-10 flex justify-center px-3 pb-1">{hintPill}</div>}
 
       {/* My dock + hand */}
       {seated && playing && (
@@ -377,7 +396,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
         />
       )}
       {!playing && (!resultOpen || !v.reveal) && (
-        <div className="safe-pb flex shrink-0 justify-center gap-2 px-3 pt-2">
+        <div className="safe-pb relative z-10 flex shrink-0 justify-center gap-2 px-3 pt-2">
           {v.reveal && (
             <Button variant="secondary" size="lg" onClick={() => setResultOpen(true)}>
               <Trophy /> Round results

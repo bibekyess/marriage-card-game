@@ -91,3 +91,25 @@ test("two people at one table by code", async ({ browser }) => {
   await hostCtx.close();
   await guestCtx.close();
 });
+
+test("Your tables brings me back, and finished matches appear in history", async ({ page }) => {
+  await startPractice(page, "1", "1");
+  const code = page.url().split("/t/")[1];
+  // Leave the page without leaving the table (e.g. closed the tab, lost the link).
+  await page.goto("/");
+  const yours = page.getByRole("region", { name: "Your tables" });
+  await expect(yours.getByText(code)).toBeVisible();
+  await yours.getByText(code).click();
+  await expect(page.getByTestId("hand")).toBeVisible();
+
+  // Finish the match with a bot, then find it in history.
+  await page.getByRole("button", { name: "Menu" }).click();
+  await page.getByRole("button", { name: "Let a bot play for me" }).click();
+  await expect(page.getByTestId("round-result")).toBeVisible({ timeout: 60_000 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "History" }).click();
+  const sheet = page.getByTestId("history-sheet");
+  await expect(sheet.getByText(code)).toBeVisible();
+  await sheet.getByText(code).click();
+  await expect(page.getByTestId("score-sheet")).toBeVisible();
+});

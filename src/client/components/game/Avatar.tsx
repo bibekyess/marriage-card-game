@@ -32,10 +32,12 @@ interface Props {
   active?: boolean;
   /** 0..1 of the turn timer remaining; draws a ring. */
   progress?: number | null;
+  /** Festive red tika dot (Royal / Kite themes). */
+  tika?: boolean;
   className?: string;
 }
 
-export function Avatar({ name, index, size = 44, isBot, offline, active, progress, className }: Props) {
+export function Avatar({ name, index, size = 44, isBot, offline, active, progress, tika, className }: Props) {
   const [a, b] = GRADIENTS[index % GRADIENTS.length];
   const r = size / 2 + 3;
   const circ = 2 * Math.PI * r;
@@ -69,6 +71,13 @@ export function Avatar({ name, index, size = 44, isBot, offline, active, progres
       >
         {initials(name)}
       </div>
+      {tika && (
+        <span
+          className="absolute left-1/2 top-[14%] -translate-x-1/2 rounded-full bg-[#d7192a] ring-1 ring-[#ffd36e]/80"
+          style={{ width: Math.max(4, size * 0.11), height: Math.max(5, size * 0.15) }}
+          aria-hidden
+        />
+      )}
       {isBot && (
         <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 rounded-full bg-[#0b1713] px-1 text-[8px] font-extrabold leading-[13px] tracking-wider text-gold ring-1 ring-gold/40">
           BOT
