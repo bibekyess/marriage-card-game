@@ -117,7 +117,7 @@ export type BotPlan =
   | { kind: "show"; route: Route; groups: CardId[][] }
   | { kind: "discard"; card: CardId };
 
-/** Called after drawing: declare, show, or throw a card. */
+/** Called on the bot's turn: declare, show, or throw a card. */
 export function choosePlay(v: BotView): BotPlan {
   if (v.route === "pure") {
     const f = findFinish(v.hand, v.maal, { forbidden: v.picked });

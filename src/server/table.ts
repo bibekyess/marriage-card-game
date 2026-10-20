@@ -147,11 +147,11 @@ export class Table {
   get g(): RoundState {
     return this.s.game ?? fail("No round is being played.");
   }
-  private requireTurn(id: string, phase: "draw" | "discard") {
+  private requireTurn(id: string, phase?: "draw" | "discard") {
     if (this.s.status !== "playing") fail("The round isn't in play.");
     const g = this.g;
     if (this.s.seats[g.turn]?.id !== id) fail("It's not your turn.");
-    if (g.phase !== phase) fail(phase === "draw" ? "You've already drawn — throw a card." : "Draw a card first.");
+    if (phase && g.phase !== phase) fail(phase === "draw" ? "You've already drawn — throw a card." : "Draw a card first.");
     return g;
   }
   private dubleeOk() {
@@ -434,7 +434,8 @@ export class Table {
   }
 
   show(id: string, route: Route, selected: CardId[] = []) {
-    const g = this.requireTurn(id, "discard");
+    // Allowed before drawing too: sets already in hand can be shown at the start of the turn.
+    const g = this.requireTurn(id);
     if (g.seen[id]) fail("You've already seen the maal.");
     const hand = g.hands[id];
     const sel = (Array.isArray(selected) ? selected : []).filter((c) => hand.includes(c));
@@ -614,6 +615,10 @@ export class Table {
       return;
     }
     if (g.phase === "draw") {
+      if (!g.seen[id]) {
+        const plan = choosePlay(this.botView(id));
+        if (plan.kind === "show") this.show(id, plan.route, plan.groups.flat());
+      }
       let from = chooseDraw(this.botView(id));
       try {
         this.draw(id, from);

@@ -168,6 +168,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   else if (!seated)
     hint = `You're watching${v.seats.length >= MAX_PLAYERS ? " — the table is full" : " — you'll be dealt in next round"}. ${turnName}'s turn.`;
   else if (me?.autoplay) hint = "A bot is playing for you — open the menu to take back control";
+  else if (canDraw && (h.canShowPure || h.canShowDublee)) hint = "You can show and see the maal, or draw";
   else if (canDraw) hint = h.canPickDiscard ? "Your turn — draw from the stock or take the discard" : "Your turn — draw from the stock";
   else if (discardPhase) hint = h.canDeclare ? "You can finish — tap Declare!" : h.canShowPure || h.canShowDublee ? "You can show and see the maal" : "Pick a card to throw";
   else hint = `${turnName} is playing…`;
@@ -205,8 +206,8 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   );
 
   const btn = vp.w < 520 ? "default" : "lg";
-  const primary = discardPhase ? (
-    h.canDeclare ? (
+  const primary = discardPhase || canDraw ? (
+    discardPhase && h.canDeclare ? (
       <Button size={btn} variant="gold" onClick={declare} data-testid="declare" className="animate-pulse-ring">
         <Trophy /> Declare
       </Button>
