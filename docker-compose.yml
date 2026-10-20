@@ -28,8 +28,10 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-marriage}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-marriage}
       PORT: "3000"
       TRUST_PROXY: ${TRUST_PROXY:-}
+    # Localhost only: a reverse proxy on the host (e.g. Caddy) serves it publicly, and
+    # nobody can bypass the proxy to forge X-Forwarded-For when TRUST_PROXY is on.
     ports:
-      - "${APP_PORT:-9062}:3000"
+      - "127.0.0.1:${APP_PORT:-9062}:3000"
 
 volumes:
   pgdata:

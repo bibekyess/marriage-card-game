@@ -20,7 +20,7 @@ open http://localhost:9062
 
 This starts two containers: `db` (postgres:16-alpine, data in the `pgdata` volume) and `app` (Node 22). `bash scripts/smoke.sh --down` builds the stack, waits for `/api/health`, then tears it down.
 
-To let family join from other devices, put the app behind any HTTPS host or reverse proxy (Caddy, nginx, a cloud VM, Render, Fly.io…). The app serves the web page and the realtime socket on the same port. Set `TRUST_PROXY=1` when it sits behind a proxy, so rate limits see real client addresses.
+To let family join from other devices, put a reverse proxy on the same host (Caddy, nginx…) in front of `localhost:9062`; compose only publishes the port on 127.0.0.1. The app serves the web page and the realtime socket on the same port. Set `TRUST_PROXY=1` when it sits behind a proxy, so rate limits see real client addresses.
 
 ## Develop
 
