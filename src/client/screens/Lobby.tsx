@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Avatar } from "@/components/game/Avatar";
+import { autoFullscreen } from "@/lib/fullscreen";
 import { navigate, tableUrl } from "@/lib/router";
 import { act, leaveTable } from "@/lib/store";
 import { RulesForm, rulesSummary } from "./RulesForm";
@@ -144,7 +145,7 @@ export function Lobby({ view: v }: { view: TableView }) {
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-white/[0.06] bg-background/85 px-4 py-3 backdrop-blur safe-pb">
           <div className="mx-auto max-w-5xl">
           {host ? (
-            <Button variant="gold" size="lg" className="h-12 w-full text-base" disabled={v.seats.length < 2} onClick={() => run("start")}>
+            <Button variant="gold" size="lg" className="h-12 w-full text-base" disabled={v.seats.length < 2} onClick={() => (autoFullscreen(), run("start"))}>
               <Play fill="currentColor" /> {v.seats.length < 2 ? "Waiting for a second player" : "Deal cards"}
             </Button>
           ) : (

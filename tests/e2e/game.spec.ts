@@ -52,6 +52,15 @@ test("a bot plays a whole match for me and the settlement shows who pays", async
   await expect(sheet.getByRole("button", { name: "Share scorecard" })).toBeVisible();
 });
 
+test("full screen button toggles the browser bars away and back", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "phones get it automatically from the Deal tap");
+  await startPractice(page);
+  await page.getByRole("button", { name: "Full screen", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true);
+  await page.getByRole("button", { name: "Exit full screen" }).click();
+  await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);
+});
+
 test("two people at one table by code", async ({ browser }) => {
   const hostCtx = await browser.newContext();
   const guestCtx = await browser.newContext();

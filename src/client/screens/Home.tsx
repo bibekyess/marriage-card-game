@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { autoFullscreen } from "@/lib/fullscreen";
 import { navigate } from "@/lib/router";
 import { pref, saveName, savedName, setPref } from "@/lib/session";
 import { createTable, joinTable } from "@/lib/store";
@@ -36,6 +37,7 @@ export function Home() {
   async function go(kind: "create" | "practice" | "join") {
     if (needName()) return;
     saveName(name);
+    autoFullscreen();
     setBusy(true);
     const r =
       kind === "join"

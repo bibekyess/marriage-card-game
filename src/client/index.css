@@ -73,6 +73,11 @@
   .safe-pb {
     padding-bottom: max(env(safe-area-inset-bottom), 12px);
   }
+  /* Keep seats and cards out from under the notch in landscape full screen. */
+  .safe-px {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
 }
 
 /* ---------- Themes (per-viewer, html[data-theme]) ---------- */

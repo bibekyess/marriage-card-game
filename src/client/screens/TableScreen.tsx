@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownUp, ArrowDownToLine, ArrowUp, BarChart3, Eye, Layers, Lightbulb, Menu, Sparkles, Trophy, WandSparkles, WifiOff } from "lucide-react";
+import { ArrowDownUp, ArrowDownToLine, ArrowUp, BarChart3, Eye, Layers, Lightbulb, Maximize, Menu, Minimize, Sparkles, Trophy, WandSparkles, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -10,6 +10,7 @@ import { PlayingCard } from "@/components/game/PlayingCard";
 import { Avatar } from "@/components/game/Avatar";
 import { FeltPattern, TableDecor, THEME_FELT } from "@/components/theme/decor";
 import { useTheme } from "@/lib/themes";
+import { canFullscreen, iPhoneInstallTip, toggleFullscreen, useFullscreen } from "@/lib/fullscreen";
 import { computeHints, computeShowState, groupedOrder } from "@/lib/hints";
 import { addGroup, afterDrag, cleanGroups, GROUP_TAG, groupsFirst, loadGroups, saveGroups, readingOrder } from "@/lib/groups";
 import { nameOf, roundLabel, signed, totals } from "@/lib/format";
@@ -161,6 +162,8 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
 
   const [sortMode, setSortMode] = useState<"suit" | "rank">("rank"); // first tap sorts by suit
   const [menu, setMenu] = useState(false);
+  const full = useFullscreen();
+  useEffect(iPhoneInstallTip, []);
   const [scores, setScores] = useState(false);
   const [resultOpen, setResultOpen] = useState(true);
   const [turnFlash, setTurnFlash] = useState(false);
@@ -369,7 +372,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
     ) : null;
 
   return (
-    <div className="relative flex h-[100dvh] flex-col overflow-hidden" style={{ background: THEME_FELT[theme].page }}>
+    <div className="safe-px relative flex h-[100dvh] flex-col overflow-hidden" style={{ background: THEME_FELT[theme].page }}>
       <TableDecor theme={theme} />
       {/* Top bar */}
       <header className="relative z-10 flex h-12 shrink-0 items-center gap-2 px-2 sm:px-4">
@@ -407,6 +410,11 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
           </span>
         )}
         <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-xs font-bold tracking-[0.2em] text-white/75", chipBg)}>{v.code}</span>
+        {canFullscreen() && (
+          <Button size="icon" variant="ghost" className={cn(chipBg, "hover:bg-black/80")} onClick={toggleFullscreen} aria-label={full ? "Exit full screen" : "Full screen"}>
+            {full ? <Minimize /> : <Maximize />}
+          </Button>
+        )}
       </header>
 
       {/* Felt with opponents on the rim */}

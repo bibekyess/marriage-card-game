@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { BarChart3, BookOpen, Bot, Flag, LogOut, RotateCcw, Share2, Vibrate, Volume2 } from "lucide-react";
+import { BarChart3, BookOpen, Bot, Flag, LogOut, Maximize, Minimize, RotateCcw, Share2, Vibrate, Volume2 } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { canFullscreen, toggleFullscreen, useFullscreen } from "@/lib/fullscreen";
 import { navigate } from "@/lib/router";
 import { act, leaveTable } from "@/lib/store";
 import { hapticsOn, setHaptics, setSound, soundOn } from "@/lib/sound";
@@ -24,6 +25,7 @@ export function MenuSheet({ view: v, open, onOpenChange, onScores }: { view: Tab
   const [sound, setS] = useState(soundOn());
   const [haptic, setH] = useState(hapticsOn());
   const [rules, setRules] = useState(false);
+  const full = useFullscreen();
   const host = v.hostId === v.you;
   const me = v.seats.find((s) => s.id === v.you);
   const close = () => onOpenChange(false);
@@ -43,6 +45,9 @@ export function MenuSheet({ view: v, open, onOpenChange, onScores }: { view: Tab
           <nav className="mt-4 space-y-0.5">
             <Item icon={BarChart3} label="Scoreboard & settle up" onClick={() => (close(), onScores())} />
             <Item icon={BookOpen} label="Rules" onClick={() => setRules(true)} />
+            {canFullscreen() && (
+              <Item icon={full ? Minimize : Maximize} label={full ? "Exit full screen" : "Full screen"} onClick={() => (close(), toggleFullscreen())} />
+            )}
             {!v.practice && <Item icon={Share2} label="Invite players" onClick={() => shareInvite(v.code)} />}
             {me && !me.isBot && (
               <Item icon={Bot} label={me.autoplay ? "Take back control" : "Let a bot play for me"} onClick={() => (close(), run("autoplay", { on: !me.autoplay }))} />

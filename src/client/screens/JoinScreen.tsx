@@ -3,6 +3,7 @@ import { ArrowLeft, LogIn } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { autoFullscreen } from "@/lib/fullscreen";
 import { navigate } from "@/lib/router";
 import { saveName, savedName, sessionFor } from "@/lib/session";
 import { joinTable } from "@/lib/store";
@@ -20,6 +21,7 @@ export function JoinScreen({ code, lost }: { code: string; lost: string | null }
     e.preventDefault();
     if (!name.trim()) return toast.error("Enter your name first.");
     saveName(name);
+    autoFullscreen();
     setBusy(true);
     const r = await joinTable(code, name);
     setBusy(false);
