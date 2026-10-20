@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { Server, Socket } from "socket.io";
 import { Ack, Route } from "../shared/protocol";
 import type { Store } from "./db";
+import { DAY_MS, EventLog } from "./events";
 import { GameError, Table } from "./table";
 
 export interface ServerOptions {
@@ -14,11 +15,27 @@ export interface ServerOptions {
   /** Multiplies bot/timer delays; tests use 0 for instant bots. */
   delayScale?: number;
   clientDir?: string | null;
+  /** Salt for stored visitor-address hashes. Defaults to ADMIN_TOKEN. */
+  adminToken?: string;
+}
+
+
+/** True when this address has used up `max` requests in the last `windowMs`; otherwise records one. */
+function limited(hits: Map<string, number[]>, key: string, max: number, windowMs = 60_000) {
+  const now = Date.now();
+  const recent = (hits.get(key) ?? []).filter((x) => now - x < windowMs);
+  if (recent.length >= max) return true;
+  recent.push(now);
+  hits.set(key, recent);
+  if (hits.size > 10_000) hits.clear();
+  return false;
 }
 
 export async function startServer(opts: ServerOptions) {
   const { store } = opts;
   const delayScale = opts.delayScale ?? 1;
+  const adminToken = opts.adminToken ?? process.env.ADMIN_TOKEN ?? "";
+  const events = new EventLog(store, adminToken);
   const tables = new Map<string, Table>();
   const timers = new Map<string, NodeJS.Timeout>();
   let closed = false;
@@ -37,13 +54,7 @@ export async function startServer(opts: ServerOptions) {
   // token, so table codes can't be scanned for names; rate-limited per address.
   const statusHits = new Map<string, number[]>();
   app.post("/api/tables/:code", express.json({ limit: "2kb" }), (req, res) => {
-    const ip = req.ip ?? "?";
-    const now = Date.now();
-    const hits = (statusHits.get(ip) ?? []).filter((x) => now - x < 60_000);
-    if (hits.length >= 60) return res.status(429).json({ error: "Too many requests" });
-    hits.push(now);
-    statusHits.set(ip, hits);
-    if (statusHits.size > 10_000) statusHits.clear();
+    if (limited(statusHits, req.ip ?? "?", 60)) return res.status(429).json({ error: "Too many requests" });
     res.set("Cache-Control", "no-store");
     const code = String(req.params.code).toUpperCase();
     const token = typeof req.body?.token === "string" ? req.body.token : "";
@@ -57,6 +68,7 @@ export async function startServer(opts: ServerOptions) {
       players: t.s.seats.filter((x) => !x.left).map((x) => x.name),
     });
   });
+
   app.use("/api", (_req, res) => res.status(404).json({ ok: false, error: "Not found" }));
 
   // Serve the built client (production). In development Vite serves it.
@@ -70,7 +82,9 @@ export async function startServer(opts: ServerOptions) {
     app.use("/assets", express.static(path.join(clientDir, "assets"), { maxAge: "1y", immutable: true, index: false }));
     app.use("/assets", (_req, res) => res.status(404).end());
     app.use(express.static(clientDir, { maxAge: "1h", index: false }));
-    app.get("*", (_req, res) => {
+    app.get("*", (req, res) => {
+      // Only the real client routes count as visits (same shapes as lib/router.ts), not scanner junk.
+      if (req.path === "/" || /^\/t\/[A-Za-z]{4}\/?$/.test(req.path)) events.visit(req.ip);
       res.setHeader("Cache-Control", "no-cache");
       res.sendFile(path.join(clientDir, "index.html"));
     });
@@ -208,6 +222,12 @@ export async function startServer(opts: ServerOptions) {
     );
   }
 
+  /** Feed table milestones (match started/ended, round won, bot added) into the event log. */
+  function observe(t: Table) {
+    t.onEvent = (type, f) => events.track(type, { code: t.s.code, ...f });
+  }
+  const nameOf = (t: Table, id: string) => t.s.seats.find((x) => x.id === id)?.name ?? t.s.spectators.find((x) => x.id === id)?.name;
+
   function removeTable(code: string) {
     clearTimeout(timers.get(code));
     timers.delete(code);
@@ -224,13 +244,27 @@ export async function startServer(opts: ServerOptions) {
     background.add(p);
   }
 
+  const VISIT_RETENTION_MS = 90 * DAY_MS;
+  let lastPrune = 0;
+
   function sweep(now = Date.now()) {
     if (closed) return;
+    if (now - lastPrune > DAY_MS) {
+      lastPrune = now;
+      const p: Promise<unknown> = store
+        .pruneVisits(now - VISIT_RETENTION_MS)
+        .catch((e) => console.error("visit cleanup failed", (e as Error)?.message ?? e))
+        .then(() => background.delete(p));
+      background.add(p);
+    }
     for (const [code, t] of [...tables]) {
       try {
         if (t.maybeTransferHost(now)) changed(t);
         const limit = t.s.status === "lobby" ? EMPTY_LOBBY_MS : t.s.status === "matchEnd" ? EMPTY_MATCH_END_MS : EMPTY_OTHER_MS;
-        if (!t.hasConnectedHumans() && now - (t.emptySince ?? t.s.updatedAt) > limit) removeTable(code);
+        if (!t.hasConnectedHumans() && now - (t.emptySince ?? t.s.updatedAt) > limit) {
+          events.track("table.removed", { code, data: { status: t.s.status, round: t.s.round } });
+          removeTable(code);
+        }
       } catch (e) {
         console.error("sweep failed", code, e);
       }
@@ -348,6 +382,8 @@ export async function startServer(opts: ServerOptions) {
       recent.push(now);
       createsByIp.set(ip, recent);
       const { table, seat } = Table.create(code, name ?? "", (p.settings as any) ?? {}, bots);
+      observe(table);
+      events.track("table.created", { code, name: seat.name, ip, data: bots ? { bots } : undefined });
       if (bots) table.start(seat.id);
       tables.set(code, table);
       attach(socket, table, seat.id);
@@ -366,6 +402,7 @@ export async function startServer(opts: ServerOptions) {
       if (!t) return bad(`No table with code ${code || "—"}. Check the code and try again.`);
       const known = token ? t.byToken(token) : null;
       if (known) {
+        if (!t.connected.has(known)) events.track("player.reconnected", { code, name: nameOf(t, known), ip });
         t.reclaim(known);
         attach(socket, t, known);
         reply({ ok: true, data: { code, playerId: known, token } });
@@ -373,6 +410,7 @@ export async function startServer(opts: ServerOptions) {
       }
       if (!name || !name.trim()) return bad("Enter your name first.");
       const { id, token: fresh } = t.join(name);
+      events.track("player.joined", { code, name: nameOf(t, id), ip });
       attach(socket, t, id);
       reply({ ok: true, data: { code, playerId: id, token: fresh } });
       changed(t);
@@ -385,6 +423,7 @@ export async function startServer(opts: ServerOptions) {
       if (!t) return bad("No table with that code — it may have closed.");
       const id = t.byToken(token);
       if (!id) return bad("Your seat at this table is no longer valid.");
+      if (!t.connected.has(id)) events.track("player.reconnected", { code: t.s.code, name: nameOf(t, id), ip });
       t.reclaim(id);
       attach(socket, t, id);
       reply({ ok: true, data: { code: t.s.code, playerId: id, token } });
@@ -394,7 +433,9 @@ export async function startServer(opts: ServerOptions) {
     on("leave", (_p, reply) => {
       const t = tables.get(socket.data.code);
       const id = socket.data.playerId as string | undefined;
+      const name = t && id ? nameOf(t, id) : undefined;
       const { removed } = t && id ? t.leave(id) : { removed: false };
+      if (removed && t) events.track("player.left", { code: t.s.code, name, ip });
       reply({ ok: true, data: { removed } });
       leaveRoom(socket);
       if (removed && t) changed(t);
@@ -473,6 +514,7 @@ export async function startServer(opts: ServerOptions) {
       // Nobody is connected right after a restart; give people time to come back.
       for (const seat of s.seats) if (!seat.isBot) t.setConnected(seat.id, false);
       t.extendDeadline(60_000);
+      observe(t);
       tables.set(s.code, t);
       schedule(t);
     } catch (e) {
@@ -502,6 +544,7 @@ export async function startServer(opts: ServerOptions) {
         if (!pending.length) break;
         await Promise.all(pending);
       }
+      await events.flush();
       await store.close();
     })());
   }

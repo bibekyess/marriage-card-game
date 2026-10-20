@@ -16,6 +16,7 @@ import {
 import { maalPoints, scoreRound } from "../shared/scoring";
 import { LogEntry, RoundReveal, RoundRow, Route, TableStatus, TableView } from "../shared/protocol";
 import { dubleesAllowed, MAX_PLAYERS, MIN_PLAYERS, sanitizeSettings, Settings } from "../shared/settings";
+import type { EventType } from "./events";
 
 export class GameError extends Error {}
 const fail = (msg: string): never => {
@@ -103,7 +104,28 @@ export class Table {
   emptySince: number | null = Date.now();
   private finishCache: { key: string; result: Finish | null } | null = null;
 
+  /** Set by the server to observe milestones for the event log; the table itself does no I/O. */
+  onEvent?: (type: EventType, f: { name?: string; data?: Record<string, unknown> }) => void;
+
   constructor(public s: TableState) {}
+
+  private note(type: EventType, name?: string, data?: Record<string, unknown>) {
+    try {
+      this.onEvent?.(type, { name, data });
+    } catch {
+      // Logging must never affect play.
+    }
+  }
+
+  /** People still at the table (leavers don't count towards stats). */
+  private humanNames() {
+    return this.s.seats.filter((x) => !x.isBot && !x.left).map((x) => x.name);
+  }
+
+  /** A match only counts once some round had a winner, so abandoned or called-off ones don't show up. */
+  private matchEnded() {
+    if (this.s.rounds.some((r) => r.winnerId)) this.note("match.ended", undefined, { players: this.humanNames(), rounds: this.s.rounds.length });
+  }
 
   static create(code: string, hostName: string, settings: Partial<Settings>, practiceBots = 0) {
     const host: SeatState = { id: newId(), name: cleanName(hostName), avatar: 0, isBot: false, token: newId(18), autoplay: false };
@@ -220,6 +242,7 @@ export class Table {
     const name = BOT_NAMES.find((n) => !used.has(n)) ?? `Bot ${this.s.seats.length}`;
     this.s.seats.push({ id: newId(), name, avatar: this.nextAvatar(), isBot: true, token: newId(18), autoplay: false });
     this.log(`${name} (bot) sat down.`);
+    this.note("bot.added", name);
   }
 
   removeSeat(by: string, id: string) {
@@ -327,6 +350,8 @@ export class Table {
 
   newMatch(by: string) {
     this.requireHost(by);
+    // Restarting mid-match ends the old one first (if it scored a round), so stats never lose it.
+    if (this.s.status !== "matchEnd") this.matchEnded();
     this.s.rounds = [];
     this.s.round = 0;
     this.s.names = {};
@@ -341,14 +366,20 @@ export class Table {
       this.s.game = null;
       this.log("The round was abandoned.");
     }
+    const already = this.s.status === "matchEnd";
     this.s.status = "matchEnd";
     this.log("The host ended the match.");
+    if (!already) this.matchEnded();
   }
 
   private deal(rand?: (n: number) => number) {
     const n = this.s.seats.length;
     this.s.round += 1;
-    if (this.s.round === 1) this.s.matchStartedAt = Date.now();
+    if (this.s.round === 1) {
+      this.s.matchStartedAt = Date.now();
+      const humans = this.humanNames();
+      this.note("match.started", undefined, { players: humans, bots: n - humans.length });
+    }
     // Round 1: the last seat deals, so the first seat plays first. Then the deal moves round the table.
     // If the previous dealer has left, the seat that moved into their place deals.
     const prev = this.s.dealerId ? this.s.seats.findIndex((x) => x.id === this.s.dealerId) : -1;
@@ -572,7 +603,11 @@ export class Table {
     const last = this.s.settings.rounds > 0 && this.s.round >= this.s.settings.rounds;
     this.s.status = last ? "matchEnd" : "roundEnd";
     this.log(`${this.nameOf(winnerId)} won round ${this.s.round}${route === "dublee" ? " with dublees" : ""}!`);
-    if (last) this.log("That was the last round. Time to settle up!");
+    this.note("round.won", this.nameOf(winnerId), { round: this.s.round, route });
+    if (last) {
+      this.log("That was the last round. Time to settle up!");
+      this.matchEnded();
+    }
   }
 
   /** Called when the stock has run out too many times: nobody wins, nobody pays. */
@@ -603,6 +638,7 @@ export class Table {
     const last = this.s.settings.rounds > 0 && this.s.round >= this.s.settings.rounds;
     this.s.status = last ? "matchEnd" : "roundEnd";
     this.log(`Round ${this.s.round} was called off — the stock ran out ${MAX_RESHUFFLES} times. No points.`);
+    if (last) this.matchEnded();
   }
 
   arrange(id: string, order: CardId[]) {

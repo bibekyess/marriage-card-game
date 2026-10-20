@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { io as connect, Socket } from "socket.io-client";
 import { MemoryStore, PgStore, Store } from "../src/server/db";
+import type { Stats } from "../src/server/events";
 import { startServer } from "../src/server/index";
 import type { TableState } from "../src/server/table";
 import type { Ack, TableView } from "../src/shared/protocol";
@@ -16,6 +17,15 @@ class SharedStore implements Store {
     this.data.set(s.code, JSON.stringify(s));
   }
   async close() {}
+  async logEvent() {}
+  async pruneVisits() {}
+  async stats(): Promise<Stats> {
+    const z = { tables: 0, matches: 0, players: 0, visitors: 0 };
+    return { today: z, week: z, all: z, top: [] };
+  }
+  async recentEvents() {
+    return [];
+  }
   async loadActive() {
     return [...this.data.values()].map((x) => JSON.parse(x) as TableState);
   }
