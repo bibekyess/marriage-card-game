@@ -46,6 +46,8 @@ export interface RoundState {
   seen: Record<string, Route>;
   shown: Record<string, CardId[][]>;
   deadline: number | null;
+  /** When the current turn began, so everyone can see how long a player is taking. */
+  turnStartedAt?: number;
   reshuffles?: number;
   /** Who threw the card on top of the discard pile. */
   discardBy?: string | null;
@@ -305,6 +307,8 @@ export class Table {
   extendDeadline(graceMs: number) {
     const g = this.s.game;
     if (g?.deadline) g.deadline = Math.max(g.deadline, Date.now() + graceMs);
+    // The downtime wasn't their fault; don't count it as slow play.
+    if (g) g.turnStartedAt = Date.now();
   }
 
   setAutoplay(by: string, id: string, on: boolean) {
@@ -416,6 +420,7 @@ export class Table {
       seen: {},
       shown: {},
       deadline: null,
+      turnStartedAt: Date.now(),
     };
     this.s.reveal = null;
     this.s.status = "playing";
@@ -481,6 +486,7 @@ export class Table {
     g.drawn = null;
     g.picked = null;
     g.maalPending = null;
+    g.turnStartedAt = Date.now();
     this.armTimer();
   }
 
@@ -816,6 +822,7 @@ export class Table {
       drawn: g && s.seats[g.turn]?.id === id ? g.drawn : null,
       picked: g && s.seats[g.turn]?.id === id ? g.picked : null,
       deadline: g?.deadline ?? null,
+      turnStartedAt: s.status === "playing" ? g?.turnStartedAt ?? null : null,
       rounds: s.rounds,
       reveal: s.reveal,
       log: s.log.slice(-15),

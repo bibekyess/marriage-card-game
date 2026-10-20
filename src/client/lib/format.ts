@@ -30,3 +30,17 @@ export const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${Math.abs(n
 export function roundLabel(v: TableView) {
   return v.settings.rounds ? `Round ${Math.max(1, v.round)} of ${v.settings.rounds}` : `Round ${Math.max(1, v.round)}`;
 }
+
+/** A turn this long starts to look slow; twice this and we flag it loudly. */
+export const SLOW_TURN_SECONDS = 30;
+
+export type TurnPace = "ok" | "slow" | "very-slow";
+
+export const turnPace = (seconds: number): TurnPace =>
+  seconds >= SLOW_TURN_SECONDS * 2 ? "very-slow" : seconds >= SLOW_TURN_SECONDS ? "slow" : "ok";
+
+/** "0:07", "1:23", "12:05". */
+export function clock(seconds: number) {
+  const s = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}

@@ -103,6 +103,7 @@ export function viewFromRecord(m: MatchRecord): TableView {
     drawn: null,
     picked: null,
     deadline: null,
+    turnStartedAt: null,
     rounds: m.rounds,
     reveal: null,
     log: [],

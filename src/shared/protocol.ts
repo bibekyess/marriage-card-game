@@ -84,6 +84,8 @@ export interface TableView {
   drawn: CardId | null;
   picked: CardId | null; // taken from the discard pile this turn (can't be thrown back)
   deadline: number | null;
+  /** When the current turn began (server clock); null between rounds. */
+  turnStartedAt: number | null;
   rounds: RoundRow[];
   reveal: RoundReveal | null;
   log: LogEntry[];

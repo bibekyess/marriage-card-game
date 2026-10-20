@@ -6,12 +6,15 @@ import { Avatar } from "./Avatar";
 import { PlayingCard } from "./PlayingCard";
 import { TunnelTag } from "./TunnelTag";
 import { useTheme } from "@/lib/themes";
+import { clock, turnPace } from "@/lib/format";
 
 interface Props {
   seat: SeatView;
   active: boolean;
   dealer: boolean;
   progress: number | null;
+  /** Seconds this player has spent on the current turn (only while it's their turn). */
+  elapsed?: number | null;
   maal: string | null;
   size?: number;
   showSets?: boolean;
@@ -26,7 +29,28 @@ interface Props {
 }
 
 /** An opponent on the rim of the table: avatar, a fan of their face-down cards, name and status. */
-export function Seat({ seat, active, dealer, progress, maal, size = 46, showSets = true, fanLeft, inline, align = "center", onOpen }: Props) {
+/** How long the player has been on this turn; turns amber, then red, when they're slow. */
+export function TurnClock({ seconds, className }: { seconds: number; className?: string }) {
+  const pace = turnPace(seconds);
+  return (
+    <span
+      className={cn(
+        "shrink-0 rounded-full px-1 text-[10px] font-extrabold tabular-nums leading-4",
+        pace === "ok" && "opacity-70",
+        pace === "slow" && "bg-[#2a1d00] text-amber-300",
+        pace === "very-slow" && "bg-red-600 text-white motion-safe:animate-pulse",
+        className,
+      )}
+      title="Time on this turn"
+      aria-label={`On this turn for ${clock(seconds)}`}
+      data-testid="turn-clock"
+    >
+      {clock(seconds)}
+    </span>
+  );
+}
+
+export function Seat({ seat, active, dealer, progress, elapsed = null, maal, size = 46, showSets = true, fanLeft, inline, align = "center", onOpen }: Props) {
   const theme = useTheme();
   // Older cached views may not have `thrown` yet.
   const last = seat.thrown?.at(-1);
@@ -98,6 +122,7 @@ export function Seat({ seat, active, dealer, progress, maal, size = 46, showSets
       >
         <span className="truncate">{seat.name}</span>
         {seat.seen && <Eye className="h-3 w-3 shrink-0" aria-label={seat.seen === "dublee" ? "Seen with dublees" : "Seen the maal"} />}
+        {elapsed != null && <TurnClock seconds={elapsed} />}
       </div>
       {showSets && seat.shown.length > 0 && (
         <div

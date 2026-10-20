@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Hand, HandGroup } from "@/components/game/Hand";
 import { Piles } from "@/components/game/Piles";
-import { Seat } from "@/components/game/Seat";
+import { Seat, TurnClock } from "@/components/game/Seat";
 import { ThrownDialog } from "@/components/game/ThrownDialog";
 import { PlayingCard } from "@/components/game/PlayingCard";
 import { TunnelTag } from "@/components/game/TunnelTag";
@@ -15,7 +15,7 @@ import { useTheme } from "@/lib/themes";
 import { canFullscreen, iPhoneInstallTip, toggleFullscreen, useFullscreen } from "@/lib/fullscreen";
 import { computeHints, computeShowState, groupedOrder } from "@/lib/hints";
 import { addGroup, afterDrag, cleanGroups, GROUP_TAG, groupsFirst, loadGroups, saveGroups, readingOrder } from "@/lib/groups";
-import { nameOf, roundLabel, signed, totals } from "@/lib/format";
+import { nameOf, roundLabel, signed, totals, turnPace } from "@/lib/format";
 import { act } from "@/lib/store";
 import { sfx } from "@/lib/sound";
 import { cn } from "@/lib/utils";
@@ -198,7 +198,9 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
 
   // Count down against the server's clock, not the phone's (which may be off).
   const offset = useMemo(() => v.serverNow - Date.now(), [v.serverNow]);
-  const now = useNow(!!v.deadline && playing) + offset;
+  const now = useNow(playing && (!!v.deadline || !!v.turnStartedAt)) + offset;
+  // How long the current player has been thinking; older cached views may not have it.
+  const elapsed = playing && v.turnStartedAt ? Math.max(0, (now - v.turnStartedAt) / 1000) : null;
   const progress = v.deadline && v.settings.turnTimer ? Math.max(0, Math.min(1, (v.deadline - now) / (v.settings.turnTimer * 1000))) : null;
   const secondsLeft = v.deadline ? Math.max(0, Math.ceil((v.deadline - now) / 1000)) : null;
 
@@ -412,6 +414,9 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
             {secondsLeft}s
           </span>
         )}
+        {h.myTurn && secondsLeft == null && elapsed != null && (
+          <TurnClock seconds={elapsed} className={cn("px-2.5 py-1 text-xs leading-4", turnPace(elapsed) === "ok" && "bg-black/30 text-gold opacity-100")} />
+        )}
         <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-xs font-bold tracking-[0.2em] text-white/75", chipBg)}>{v.code}</span>
         {canFullscreen() && (
           <Button size="icon" variant="ghost" className={cn(chipBg, "hover:bg-black/80")} onClick={toggleFullscreen} aria-label={full ? "Exit full screen" : "Full screen"}>
@@ -444,6 +449,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
                   active={playing && v.turn === idx}
                   dealer={v.dealer === idx}
                   progress={progress}
+                  elapsed={playing && v.turn === idx ? elapsed : null}
                   maal={v.maal}
                   size={seatSize}
                   showSets={landscape ? vp.h >= 380 : true}

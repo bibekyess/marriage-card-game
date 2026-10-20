@@ -149,6 +149,29 @@ describe("socket server", () => {
     expect((await host.until((v) => v.turn === 0)).seats[1].thrown).toEqual([{ card: toss }]);
   });
 
+  it("tells everyone when the current turn started", async () => {
+    const srv = await server();
+    const host = client(srv.port);
+    const { code } = (await host.call("create", { name: "Bibek" })).data;
+    const guest = client(srv.port);
+    expect((await guest.call("join", { code, name: "Sita" })).ok).toBe(true);
+    await host.until((v) => v.seats.length === 2);
+    expect((await host.call("start")).ok).toBe(true);
+    const v0 = await host.until((v) => v.status === "playing");
+    expect(v0.turnStartedAt).toBeGreaterThan(0);
+    expect(v0.turnStartedAt).toBeLessThanOrEqual(v0.serverNow);
+
+    // Drawing is still the same turn; throwing starts the next one.
+    const first = v0.seats[v0.turn].id === v0.you ? host : guest;
+    expect((await first.call("draw", { from: "stock" })).ok).toBe(true);
+    const v1 = await first.until((v) => v.phase === "discard");
+    expect(v1.turnStartedAt).toBe(v0.turnStartedAt);
+    await new Promise((r) => setTimeout(r, 5));
+    expect((await first.call("discard", { card: v1.hand[0] })).ok).toBe(true);
+    const v2 = await host.until((v) => v.turn !== v0.turn);
+    expect(v2.turnStartedAt).toBeGreaterThan(v0.turnStartedAt!);
+  });
+
   it("lets the host change the turn timer mid-round", async () => {
     const srv = await server();
     const host = client(srv.port);
