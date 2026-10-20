@@ -40,6 +40,15 @@ export const DEFAULT_SETTINGS: Settings = {
   botSpeed: "normal",
 };
 
+/** Turn timer choices in seconds (0 = off). */
+export const TURN_TIMERS: readonly number[] = [0, 30, 60, 90, 120];
+/** Older tables may still have 45s. */
+const ALLOWED_TIMERS = [...TURN_TIMERS, 45];
+
+export function timerLabel(s: number) {
+  return s === 0 ? "Off" : s >= 120 ? `${s / 60}m` : `${s}s`;
+}
+
 export interface Currency {
   code: string;
   symbol: string;
@@ -101,7 +110,7 @@ export function sanitizeSettings(raw: Partial<Settings> | undefined, base: Setti
     dublees: typeof r.dublees === "boolean" ? r.dublees : base.dublees,
     dubleeMinPlayers: int(r.dubleeMinPlayers, base.dubleeMinPlayers, 2, 5),
     restrictPickup: typeof r.restrictPickup === "boolean" ? r.restrictPickup : base.restrictPickup,
-    turnTimer: [0, 30, 45, 60, 90].includes(num(r.turnTimer, -1, -1)) ? num(r.turnTimer, 0) : base.turnTimer,
+    turnTimer: ALLOWED_TIMERS.includes(num(r.turnTimer, -1, -1)) ? num(r.turnTimer, 0) : base.turnTimer,
     botSpeed: (["relaxed", "normal", "fast"] as const).includes(r.botSpeed as Settings["botSpeed"])
       ? (r.botSpeed as Settings["botSpeed"])
       : base.botSpeed,

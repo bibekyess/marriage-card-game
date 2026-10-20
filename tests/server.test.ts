@@ -124,6 +124,33 @@ describe("socket server", () => {
     expect((await client(srv.port).call("resume", { code, token: "nope" })).ok).toBe(false);
   });
 
+  it("lets the host change the turn timer mid-round", async () => {
+    const srv = await server();
+    const host = client(srv.port);
+    const { code } = (await host.call("create", { name: "Bibek" })).data;
+    const guest = client(srv.port);
+    expect((await guest.call("join", { code, name: "Sita" })).ok).toBe(true);
+    await host.until((v) => v.seats.length === 2);
+    expect((await host.call("start")).ok).toBe(true);
+    const v0 = await host.until((v) => v.status === "playing");
+    expect(v0.deadline).toBeNull();
+
+    // Only the host, only real choices.
+    expect((await guest.call("turnTimer", { seconds: 60 })).error).toMatch(/host/);
+    expect((await host.call("turnTimer", { seconds: 17 })).ok).toBe(false);
+    expect((await host.call("turnTimer", { seconds: "60" })).ok).toBe(false);
+
+    const before = Date.now();
+    expect((await host.call("turnTimer", { seconds: 120 })).ok).toBe(true);
+    const v1 = await guest.until((v) => v.settings.turnTimer === 120);
+    expect(v1.status).toBe("playing");
+    expect(v1.deadline).toBeGreaterThanOrEqual(before + 119_000);
+
+    expect((await host.call("turnTimer", { seconds: 0 })).ok).toBe(true);
+    const v2 = await host.until((v) => v.settings.turnTimer === 0);
+    expect(v2.deadline).toBeNull();
+  });
+
   it("restores tables after a server restart", async () => {
     const store = new SharedStore();
     const srv1 = await server(store);

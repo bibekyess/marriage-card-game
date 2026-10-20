@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BarChart3, BookOpen, Bot, Flag, LogOut, Maximize, Minimize, RotateCcw, Share2, Vibrate, Volume2 } from "lucide-react";
+import { BarChart3, BookOpen, Bot, Flag, LogOut, Maximize, Minimize, RotateCcw, Share2, Timer, Vibrate, Volume2 } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
@@ -11,7 +11,9 @@ import { hapticsOn, setHaptics, setSound, soundOn } from "@/lib/sound";
 import { RulesSheet } from "./RulesSheet";
 import { ThemePicker } from "./ThemePicker";
 import { shareInvite } from "./Lobby";
+import { Segmented } from "./RulesForm";
 import type { TableView } from "../../shared/protocol";
+import { timerLabel, TURN_TIMERS } from "../../shared/settings";
 
 function Item({ icon: Icon, label, onClick, danger }: { icon: typeof BookOpen; label: string; onClick(): void; danger?: boolean }) {
   return (
@@ -40,7 +42,10 @@ export function MenuSheet({ view: v, open, onOpenChange, onScores }: { view: Tab
         <SheetContent side="left" className="w-[300px] overflow-y-auto">
           <SheetHeader>
             <SheetTitle>Table {v.code}</SheetTitle>
-            <SheetDescription>{v.seats.length} players · {v.settings.pointRate} {v.settings.currency}/pt</SheetDescription>
+            <SheetDescription>
+              {v.seats.length} players · {v.settings.pointRate} {v.settings.currency}/pt
+              {v.settings.turnTimer ? ` · ${timerLabel(v.settings.turnTimer)} timer` : ""}
+            </SheetDescription>
           </SheetHeader>
           <nav className="mt-4 space-y-0.5">
             <Item icon={BarChart3} label="Scoreboard & settle up" onClick={() => (close(), onScores())} />
@@ -73,6 +78,17 @@ export function MenuSheet({ view: v, open, onOpenChange, onScores }: { view: Tab
             <>
               <Separator className="my-2" />
               <p className="px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Host</p>
+              <div className="px-3 py-1.5">
+                <div className="mb-1.5 flex items-center gap-3 text-sm font-semibold">
+                  <Timer className="h-4 w-4 opacity-80" /> Turn timer
+                </div>
+                <Segmented
+                  value={v.settings.turnTimer}
+                  onChange={(s) => run("turnTimer", { seconds: s })}
+                  options={TURN_TIMERS.map((s) => ({ v: s, label: timerLabel(s) }))}
+                />
+                <p className="mt-1 text-xs leading-snug text-muted-foreground">Change it any time; the current turn gets a fresh clock.</p>
+              </div>
               <nav className="space-y-0.5">
                 {v.seats
                   .filter((s) => !s.isBot && s.id !== v.you && !s.connected)

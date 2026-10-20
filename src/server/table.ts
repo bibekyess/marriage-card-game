@@ -15,7 +15,7 @@ import {
 } from "../shared/melds";
 import { maalPoints, scoreRound } from "../shared/scoring";
 import { LogEntry, RoundReveal, RoundRow, Route, TableStatus, TableView } from "../shared/protocol";
-import { dubleesAllowed, MAX_PLAYERS, MIN_PLAYERS, sanitizeSettings, Settings } from "../shared/settings";
+import { dubleesAllowed, MAX_PLAYERS, MIN_PLAYERS, sanitizeSettings, Settings, timerLabel } from "../shared/settings";
 import type { EventType } from "./events";
 
 export class GameError extends Error {}
@@ -317,6 +317,18 @@ export class Table {
     this.requireHost(by);
     if (this.s.status === "playing") fail("Change rules between rounds.");
     this.s.settings = sanitizeSettings({ ...this.s.settings, ...raw }, this.s.settings);
+  }
+
+  /** The host can change the turn timer at any time, even mid-round, to suit the table's pace. */
+  setTurnTimer(by: string, seconds: number) {
+    this.requireHost(by);
+    const next = sanitizeSettings({ ...this.s.settings, turnTimer: seconds }, this.s.settings).turnTimer;
+    if (next !== seconds) fail("That timer isn't an option.");
+    if (next === this.s.settings.turnTimer) return;
+    this.s.settings = { ...this.s.settings, turnTimer: next };
+    // Restart the current turn's clock so nobody is timed out by the change.
+    if (this.s.status === "playing") this.armTimer();
+    this.log(next ? `The host set the turn timer to ${timerLabel(next)}.` : "The host turned the turn timer off.");
   }
 
   setConnected(id: string, on: boolean) {

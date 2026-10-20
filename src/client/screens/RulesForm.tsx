@@ -3,7 +3,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { CURRENCIES, Settings, UnseenRule } from "../../shared/settings";
+import { CURRENCIES, Settings, timerLabel, TURN_TIMERS, UnseenRule } from "../../shared/settings";
 
 interface Props {
   value: Settings;
@@ -38,7 +38,7 @@ function Num({ value, onChange, disabled, step = 1, w = "w-20" }: { value: numbe
   );
 }
 
-function Segmented<T extends string | number>({ value, options, onChange, disabled }: { value: T; options: { v: T; label: string }[]; onChange(v: T): void; disabled?: boolean }) {
+export function Segmented<T extends string | number>({ value, options, onChange, disabled }: { value: T; options: { v: T; label: string }[]; onChange(v: T): void; disabled?: boolean }) {
   return (
     <div className="inline-flex rounded-lg border border-white/10 bg-black/20 p-0.5">
       {options.map((o) => (
@@ -107,12 +107,7 @@ export function RulesForm({ value: s, onChange, disabled }: Props) {
             value={s.turnTimer}
             disabled={disabled}
             onChange={(v) => up("turnTimer", v)}
-            options={[
-              { v: 0, label: "Off" },
-              { v: 30, label: "30s" },
-              { v: 60, label: "60s" },
-              { v: 90, label: "90s" },
-            ]}
+            options={TURN_TIMERS.map((v) => ({ v, label: timerLabel(v) }))}
           />
         </Row>
         <Row title="Bot speed">
@@ -215,7 +210,7 @@ export function rulesSummary(s: Settings) {
     s.unseenRule[0].toUpperCase() + s.unseenRule.slice(1),
     s.dublees ? (s.dubleeMinPlayers >= 4 ? "Dublee 4+" : "Dublee") : "No dublee",
   ];
-  if (s.turnTimer) parts.push(`${s.turnTimer}s timer`);
+  if (s.turnTimer) parts.push(`${timerLabel(s.turnTimer)} timer`);
   return parts.join(" · ");
 }
 

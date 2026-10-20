@@ -591,6 +591,10 @@ export async function startServer(opts: ServerOptions) {
         if (!isObj(p.settings)) bad("Invalid settings.");
         t.updateSettings(id, p.settings as any);
       },
+      turnTimer: (t, id, p) => {
+        if (typeof p.seconds !== "number") bad("Invalid timer.");
+        t.setTurnTimer(id, p.seconds);
+      },
       autoplay: (t, id, p) => {
         if (typeof p.on !== "boolean") bad("Invalid autoplay value.");
         t.setAutoplay(id, optStr(p.id, "id", 40) ?? id, p.on);
