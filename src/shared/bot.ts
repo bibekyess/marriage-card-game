@@ -22,6 +22,8 @@ export interface BotView {
   restrictPickup: boolean;
   discardTop: CardId | null;
   picked: CardId | null;
+  /** Pure sets still needed to see the maal (fewer after showing tunnels at the start). */
+  setsNeeded: number;
 }
 
 const rankGap = (a: number, b: number) =>
@@ -126,9 +128,9 @@ export function choosePlay(v: BotView): BotPlan {
     const f = findDubleeFinish(v.hand, { forbidden: v.picked });
     if (f) return { kind: "declare", finish: f };
   } else {
-    const pure = findShow(v.hand);
+    const pure = findShow(v.hand, [], v.setsNeeded);
     if (pure) return { kind: "show", route: "pure", groups: pure };
-    if (v.dubleeAllowed) {
+    if (v.dubleeAllowed && v.setsNeeded === 3) {
       const d = findDubleeShow(v.hand);
       if (d) return { kind: "show", route: "dublee", groups: d };
     }

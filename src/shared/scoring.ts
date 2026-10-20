@@ -12,7 +12,7 @@ export interface MaalBreakdown {
   points: number;
 }
 
-/** Maal points held by one player. `groups` are the sets they showed (tunnels score). */
+/** Maal points held by one player. Every tunnel in `groups` scores. */
 export function maalPoints(cards: CardId[], groups: CardId[][], maal: CardId, s: Settings): MaalBreakdown {
   const b = { tiplu: 0, poplu: 0, jhiplu: 0, alter: 0, marriages: 0, tunnels: 0, points: 0 };
   for (const c of cards) {
@@ -35,7 +35,7 @@ export interface PlayerRoundInput {
   id: string;
   seen: boolean;
   cards: CardId[]; // every card they hold, shown or not
-  shown: CardId[][];
+  shown: CardId[][]; // tunnels that score
 }
 
 export interface PlayerRoundResult {

@@ -168,13 +168,14 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   else if (!seated)
     hint = `You're watching${v.seats.length >= MAX_PLAYERS ? " — the table is full" : " — you'll be dealt in next round"}. ${turnName}'s turn.`;
   else if (me?.autoplay) hint = "A bot is playing for you — open the menu to take back control";
+  else if (canDraw && v.canOpenTunnels) hint = "You can show your tunnela before drawing";
   else if (canDraw && (h.canShowPure || h.canShowDublee)) hint = "You can show and see the maal, or draw";
   else if (canDraw) hint = h.canPickDiscard ? "Your turn — draw from the stock or take the discard" : "Your turn — draw from the stock";
   else if (discardPhase) hint = h.canDeclare ? "You can finish — tap Declare!" : h.canShowPure || h.canShowDublee ? "You can show and see the maal" : "Pick a card to throw";
   else hint = `${turnName} is playing…`;
 
   const discard = (c: CardId) => run("discard", { card: c });
-  const show = (route: "pure" | "dublee") => run("show", { route, cards: selected.size === (route === "pure" ? 9 : 14) ? [...selected] : [] }).then((ok) => ok && setSelected(new Set()));
+  const show = (route: "pure" | "dublee") => run("show", { route, cards: selected.size === (route === "pure" ? h.setsNeeded * 3 : 14) ? [...selected] : [] }).then((ok) => ok && setSelected(new Set()));
   const declare = () => run("declare", { discard: one ?? h.finishDiscard });
 
   const myTotal = seated ? totals(v)[v.you] ?? 0 : 0;
@@ -207,13 +208,17 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
 
   const btn = vp.w < 520 ? "default" : "lg";
   const primary = discardPhase || canDraw ? (
-    discardPhase && h.canDeclare ? (
+    canDraw && v.canOpenTunnels ? (
+      <Button size={btn} variant="gold" onClick={() => run("openTunnels")} data-testid="open-tunnels">
+        <Sparkles /> Show tunnela
+      </Button>
+    ) : discardPhase && h.canDeclare ? (
       <Button size={btn} variant="gold" onClick={declare} data-testid="declare" className="animate-pulse-ring">
         <Trophy /> Declare
       </Button>
-    ) : !h.seen && (h.canShowPure || selected.size === 9) ? (
+    ) : !h.seen && (h.canShowPure || selected.size === h.setsNeeded * 3) ? (
       <Button size={btn} variant="gold" onClick={() => show("pure")} data-testid="show-pure">
-        <Sparkles /> {vp.w < 520 ? "Show" : "Show 3 pure"}
+        <Sparkles /> {vp.w < 520 ? "Show" : `Show ${h.setsNeeded} pure`}
       </Button>
     ) : !h.seen && h.canShowDublee ? (
       <Button size={btn} variant="gold" onClick={() => show("dublee")} data-testid="show-dublee">

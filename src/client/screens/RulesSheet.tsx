@@ -42,6 +42,10 @@ export function RulesSheet({ open, onOpenChange, settings = DEFAULT_SETTINGS }: 
             </p>
             <Example title="Pure sequence" text="Same suit, in a row. Ace low or high." cards={["4H0", "5H0", "6H0"]} />
             <Example title="Tunnel" text="Three identical cards." cards={["9C0", "9C1", "9C2"]} />
+            <p className="text-muted-foreground">
+              Holding tunnels when you're dealt? Show them on your first turn, before you draw. Each one counts as one of your 3 sets
+              and scores {s.tunnel} points once you see the maal. Tunnels you don't show at the start score nothing.
+            </p>
             {s.dublees && <Example title="Dublee" text="Two identical cards." cards={["KS0", "KS1"]} />}
           </section>
           <section className="space-y-2">

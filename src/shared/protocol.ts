@@ -85,6 +85,10 @@ export interface TableView {
   /** Your turn, after drawing: can you finish now, and with which throw? (server-computed) */
   canDeclare: boolean;
   finishDiscard: CardId | null;
+  /** Your first turn, before drawing, holding tunnels: you may show them now. */
+  canOpenTunnels: boolean;
+  /** Pure sets you still need to see the maal (fewer after showing tunnels). */
+  setsNeeded: number;
 }
 
 export interface Ack<T = unknown> {

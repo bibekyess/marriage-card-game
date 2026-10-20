@@ -48,15 +48,16 @@ Defaults are configurable per table by the host.
 
 **Pick-up rule** (`restrictPickup`, default on). Before seeing the Maal, you may take the discard only if it completes a pure set with two cards in your hand, or a dublee pair when dublees are allowed. Once you've seen, you can pick up freely.
 
-**Seeing the Maal** (in the discard step, after drawing):
+**Seeing the Maal** (on your turn, before or after drawing):
 - Show **3 pure sets**: pure sequences (same suit, consecutive; A low or high, no wrap) or tunnels (3 identical cards).
+- **Tunnela at the start:** before their first draw, a player may show every tunnel they were dealt. Each counts as one of the 3 pure sets (3 tunnels = maal seen at once). Only these tunnels score, and only if the player sees the maal; afterwards the dublee route is closed to them.
 - Or show **7 dublees** (pairs of identical cards). Allowed only when dublees are on and there are **4+ players**.
 
 **Wild cards** (once you've seen): Tiplu (same rank and suit), Poplu (+1, same suit), Jhiplu (−1, same suit), Alter (same rank, same colour, other suit), and Jokers (same rank, opposite colour). All of them are wild, but jokers score nothing.
 
 **Declare (win).** After drawing, a player who has seen arranges every card left in their hand, except one discard, into sequences (3+, wilds allowed), trials (3–4 of the same rank in different suits, wilds allowed) or tunnels. A dublee player wins by holding an **8th dublee**.
 
-**Maal points** (seen players only, by default): Tiplu 3, Poplu/Jhiplu 2 each, Alter 5/15/25 for 1/2/3 cards, Marriage (tiplu + poplu + jhiplu) 10 instead of 7, tunnel 5 each.
+**Maal points** (seen players only, by default): Tiplu 3, Poplu/Jhiplu 2 each, Alter 5/15/25 for 1/2/3 cards, Marriage (tiplu + poplu + jhiplu) 10 instead of 7, tunnel 5 each (only tunnels shown at the start, by players who saw).
 
 **Round settlement.** Each player's points = N × own maal − total maal (every pair settles the difference). Then every loser pays the winner **3** if they saw the Maal, **10** if not, plus **+5** each if the winner won by dublees. The points add up to 0.
 

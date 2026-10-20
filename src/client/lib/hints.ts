@@ -22,6 +22,8 @@ export interface Hints {
   dubleeOk: boolean;
   canShowPure: boolean;
   canShowDublee: boolean;
+  /** Pure sets still needed to see the maal. */
+  setsNeeded: number;
   canDeclare: boolean;
   finishDiscard: CardId | null;
   /** Taking the top discard is allowed (pick-up rule). */
@@ -46,6 +48,7 @@ export function computeHints(v: TableView): Hints {
   const dubleeOk = dubleesAllowed(v.settings, v.seats.length);
   const { pure: pureSets, dublees } = setsFor(v.hand, seen);
   const discardPhase = myTurn && v.phase === "discard";
+  const setsNeeded = v.setsNeeded ?? 3;
   const top = v.discardTop;
   const canPickDiscard = !!top && (!!seen || !v.settings.restrictPickup || completesPure(v.hand, top, dubleeOk));
   return {
@@ -55,8 +58,9 @@ export function computeHints(v: TableView): Hints {
     pureSets,
     dublees,
     dubleeOk,
-    canShowPure: myTurn && !seen && pureSets.length >= 3,
-    canShowDublee: myTurn && !seen && dubleeOk && dublees.length >= 7,
+    canShowPure: myTurn && !seen && pureSets.length >= setsNeeded,
+    canShowDublee: myTurn && !seen && dubleeOk && setsNeeded === 3 && dublees.length >= 7,
+    setsNeeded,
     canDeclare: discardPhase && v.canDeclare,
     finishDiscard: v.finishDiscard,
     canPickDiscard,

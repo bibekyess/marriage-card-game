@@ -111,5 +111,7 @@ export function viewFromRecord(m: MatchRecord): TableView {
     serverNow: Date.now(),
     canDeclare: false,
     finishDiscard: null,
+    canOpenTunnels: false,
+    setsNeeded: 3,
   };
 }

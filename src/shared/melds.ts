@@ -164,7 +164,7 @@ export function pureTriples(hand: CardId[]): CardId[][] {
     const g = idx.map((i) => hand[i]);
     if (isPure(g)) out.push(g);
   }
-  // Tunnels first: they score points when shown.
+  // Tunnels first: they are always safe to show.
   return out.sort((a, b) => Number(isTunnel(b)) - Number(isTunnel(a)));
 }
 
@@ -192,17 +192,17 @@ export function findPureSets(hand: CardId[], want = 3): CardId[][] {
 }
 
 /**
- * Find 3 pure sets to show. A player may pick the 9 cards themselves; otherwise the best
- * 3 sets are found automatically.
+ * Find `want` pure sets to show (3, fewer if tunnels were shown at the start). A player may
+ * pick the cards themselves; otherwise the best sets are found automatically.
  */
-export function findShow(hand: CardId[], selected: CardId[] = []): CardId[][] | null {
+export function findShow(hand: CardId[], selected: CardId[] = [], want = 3): CardId[][] | null {
   if (selected.length) {
-    if (selected.length !== 9 || hasDuplicates(selected) || !selected.every((c) => hand.includes(c))) return null;
+    if (selected.length !== want * 3 || hasDuplicates(selected) || !selected.every((c) => hand.includes(c))) return null;
     const g = partition(selected, isPure, 3);
-    return g && g.length === 3 ? g : null;
+    return g && g.length === want ? g : null;
   }
-  const sets = findPureSets(hand, 3);
-  return sets.length >= 3 ? sets : null;
+  const sets = findPureSets(hand, want);
+  return sets.length >= want ? sets : null;
 }
 
 /** All disjoint identical pairs in the hand. */

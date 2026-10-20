@@ -46,6 +46,10 @@ export interface RoundState {
   reshuffles?: number;
   /** Who threw the card on top of the discard pile. */
   discardBy?: string | null;
+  /** Tunnels shown before the player's first draw; the only tunnels that score. */
+  opened?: Record<string, CardId[][]>;
+  /** Players who have drawn at least once this round. */
+  started?: Record<string, true>;
 }
 
 export interface TableState {
@@ -85,7 +89,7 @@ export const cleanName = (n: unknown) =>
     .join("")
     .trim() || "Player";
 
-/** Any three identical cards held (they score as a tunnel). */
+/** Every tunnel (three identical cards) in a hand. */
 function tunnelsIn(hand: CardId[]): CardId[][] {
   const by = new Map<string, CardId[]>();
   for (const c of hand) by.set(faceKey(c), [...(by.get(faceKey(c)) || []), c]);
@@ -387,6 +391,7 @@ export class Table {
   draw(id: string, from: "stock" | "discard") {
     const g = this.requireTurn(id, "draw");
     const hand = g.hands[id];
+    (g.started ??= {})[id] = true;
     let c: CardId;
     if (from === "discard") {
       const top = g.discard[g.discard.length - 1] ?? fail("The discard pile is empty.");
@@ -433,6 +438,32 @@ export class Table {
     this.armTimer();
   }
 
+  private setsNeeded(id: string) {
+    return Math.max(0, 3 - (this.g.opened?.[id]?.length ?? 0));
+  }
+
+  private canOpenTunnels(id: string) {
+    const g = this.s.game;
+    if (!g || this.s.status !== "playing" || this.s.seats[g.turn]?.id !== id || g.phase !== "draw") return false;
+    return !g.started?.[id] && !g.seen[id] && !g.opened?.[id] && tunnelsIn(g.hands[id] ?? []).length > 0;
+  }
+
+  /** Before their first draw, a player may lay down every tunnel they were dealt. Each counts as a pure set. */
+  openTunnels(id: string) {
+    const g = this.requireTurn(id, "draw");
+    if (g.started?.[id]) fail("Tunnels can only be shown before your first draw.");
+    if (g.seen[id] || g.opened?.[id]) fail("You've already shown your tunnels.");
+    const tunnels = tunnelsIn(g.hands[id]);
+    if (!tunnels.length) fail("You don't have a tunnel to show.");
+    const used = new Set(tunnels.flat());
+    g.hands[id] = g.hands[id].filter((c) => !used.has(c));
+    (g.opened ??= {})[id] = tunnels;
+    g.shown[id] = [...tunnels];
+    const n = tunnels.length;
+    if (n >= 3) g.seen[id] = "pure";
+    this.log(`${this.nameOf(id)} showed ${n} tunnel${n > 1 ? "s" : ""}${n >= 3 ? " and saw the maal" : ""}.`);
+  }
+
   show(id: string, route: Route, selected: CardId[] = []) {
     // Allowed before drawing too: sets already in hand can be shown at the start of the turn.
     const g = this.requireTurn(id);
@@ -440,27 +471,29 @@ export class Table {
     const hand = g.hands[id];
     const sel = (Array.isArray(selected) ? selected : []).filter((c) => hand.includes(c));
     let groups: CardId[][] | null;
+    const need = this.setsNeeded(id);
     if (route === "dublee") {
+      if (g.opened?.[id]) fail("You've shown tunnels, so you need pure sets to see the maal.");
       if (!this.dubleeOk())
         fail(this.s.settings.dublees ? `Dublees need ${this.s.settings.dubleeMinPlayers}+ players.` : "Dublees are turned off at this table.");
       groups = findDubleeShow(hand, sel);
       if (!groups) fail("You need 7 dublees (pairs of identical cards) to show.");
     } else {
-      groups = findShow(hand, sel);
+      groups = findShow(hand, sel, need);
       if (!groups)
         fail(
-          sel.length === 9
-            ? "Those cards don't make 3 pure sets."
+          sel.length === need * 3
+            ? `Those cards don't make ${need} pure set${need > 1 ? "s" : ""}.`
             : sel.length
-              ? "Select exactly 9 cards (your 3 sets), or none and the app will find them."
-              : "You don't have 3 pure sequences or tunnels yet.",
+              ? `Select exactly ${need * 3} cards (your ${need} set${need > 1 ? "s" : ""}), or none and the app will find them.`
+              : `You don't have ${need} pure sequence${need > 1 ? "s" : ""} or tunnel${need > 1 ? "s" : ""} yet.`,
         );
     }
     const used = new Set(groups!.flat());
     g.hands[id] = hand.filter((c) => !used.has(c));
     g.seen[id] = route;
-    g.shown[id] = groups!;
-    this.log(`${this.nameOf(id)} showed ${route === "dublee" ? "7 dublees" : "3 pure sets"} and saw the maal.`);
+    g.shown[id] = [...(g.shown[id] ?? []), ...groups!];
+    this.log(`${this.nameOf(id)} showed ${route === "dublee" ? "7 dublees" : `${need} pure set${need > 1 ? "s" : ""}`} and saw the maal.`);
   }
 
   declare(id: string, preferDiscard?: CardId): void {
@@ -485,12 +518,12 @@ export class Table {
     const g = this.g;
     g.hands[winnerId] = g.hands[winnerId].filter((c) => c !== f.discard);
     g.discard.push(f.discard);
-    // Tunnels score whether shown or still held at the end, for everyone alike
-    // (so the winner's bonus never depends on how the cards happen to be arranged).
+    // Only tunnels shown before the first draw score, and only once the maal has been seen.
     const inputs = this.s.seats.map((seat) => {
       const hand = g.hands[seat.id];
       const shown = g.shown[seat.id] || [];
-      return { id: seat.id, seen: !!g.seen[seat.id], cards: [...hand, ...shown.flat()], shown: [...shown, ...tunnelsIn(hand)] };
+      const tunnels = g.seen[seat.id] ? g.opened?.[seat.id] ?? [] : [];
+      return { id: seat.id, seen: !!g.seen[seat.id], cards: [...hand, ...shown.flat()], shown: tunnels };
     });
     const rows = scoreRound(inputs, winnerId, g.maal, this.s.settings, route === "dublee");
     const points: Record<string, number> = {};
@@ -580,6 +613,7 @@ export class Table {
       restrictPickup: this.s.settings.restrictPickup,
       discardTop: g.discard[g.discard.length - 1] ?? null,
       picked: g.picked,
+      setsNeeded: this.setsNeeded(id),
     };
   }
 
@@ -615,6 +649,7 @@ export class Table {
       return;
     }
     if (g.phase === "draw") {
+      if (this.canOpenTunnels(id)) this.openTunnels(id);
       if (!g.seen[id]) {
         const plan = choosePlay(this.botView(id));
         if (plan.kind === "show") this.show(id, plan.route, plan.groups.flat());
@@ -640,8 +675,8 @@ export class Table {
   // ---------- views ----------
 
   /**
-   * Of all the cards that could be thrown to finish, the one that keeps the most maal points
-   * (tunnels included), so the result never depends on how the hand happens to be ordered.
+   * Of all the cards that could be thrown to finish, the one that keeps the most maal points,
+   * so the result never depends on how the hand happens to be ordered.
    */
   private bestFinish(id: string): Finish | null {
     const g = this.g;
@@ -651,10 +686,11 @@ export class Table {
     let best: Finish | null = null;
     let bestPts = -Infinity;
     const shown = g.shown[id] || [];
+    const tunnels = g.opened?.[id] ?? [];
     for (const f of all) {
       const rest = hand.filter((c) => c !== f.discard);
       // Scored exactly as finishRound will score it.
-      const pts = maalPoints([...rest, ...shown.flat()], [...shown, ...tunnelsIn(rest)], g.maal, this.s.settings).points;
+      const pts = maalPoints([...rest, ...shown.flat()], tunnels, g.maal, this.s.settings).points;
       if (pts > bestPts) {
         bestPts = pts;
         best = f;
@@ -718,6 +754,8 @@ export class Table {
       matchStartedAt: s.matchStartedAt ?? s.createdAt,
       serverNow: Date.now(),
       canDeclare: !!finish,
+      canOpenTunnels: this.canOpenTunnels(id),
+      setsNeeded: g && g.hands[id] ? this.setsNeeded(id) : 3,
       finishDiscard: finish?.discard ?? null,
     };
   }

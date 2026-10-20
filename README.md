@@ -4,7 +4,7 @@ Play **Nepali Marriage** with family and friends from any phone or computer. No 
 
 - **Open a table**, share the 4-letter code or link, and play a full match (5 rounds by default).
 - **All the rules are enforced:** pure sequences and tunnels to see the Maal, Tiplu/Poplu/Jhiplu/Alter/Joker wild cards, the dublee route (7 to see, 8 to win), and the pick-up rule. Invalid shows or declares are refused with a reason, so there are no fouls.
-- **Automatic scoring.** Maal points (Marriage 10, Alter 5/15/25, tunnels 5), 3 / 10 game points for seen / unseen players, and **Murder** (default), **Kidnap** or **Count** for unseen players' maal.
+- **Automatic scoring.** Maal points (Marriage 10, Alter 5/15/25, tunnels 5 when shown at the start), 3 / 10 game points for seen / unseen players, and **Murder** (default), **Kidnap** or **Count** for unseen players' maal.
 - **Settle up.** Each table sets a price per point in NPR, KRW, INR, USD, AUD and others. The app shows who pays whom in the fewest payments, plus a **shareable scorecard image** to remind the losers.
 - **Practice against bots**, or let a bot take an empty seat (or your turns).
 - **Refresh-proof.** Reloading, locking your phone or losing signal puts you straight back in your seat. Games live in Postgres, so they also survive a server restart.

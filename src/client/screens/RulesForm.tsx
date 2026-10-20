@@ -162,7 +162,7 @@ export function RulesForm({ value: s, onChange, disabled }: Props) {
             ))}
           </div>
         </Row>
-        <Row title="Tunnel" hint="Each tunnel shown.">
+        <Row title="Tunnel" hint="Each tunnel shown at the start (needs maal seen).">
           <Num value={s.tunnel} disabled={disabled} onChange={(v) => up("tunnel", v)} />
         </Row>
         <Row title="Dublee win bonus" hint="Extra from each player when someone wins by dublees.">

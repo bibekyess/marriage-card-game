@@ -414,6 +414,7 @@ export async function startServer(opts: ServerOptions) {
         const route = optStr(p.route, "route", 10);
         t.show(id, (route === "dublee" ? "dublee" : "pure") as Route, p.cards === undefined ? [] : strArr(p.cards, "cards"));
       },
+      openTunnels: (t, id) => t.openTunnels(id),
       declare: (t, id, p) => t.declare(id, optStr(p.discard, "card", 20)),
       arrange: (t, id, p) => t.arrange(id, strArr(p.order, "order")),
       start: (t, id) => t.start(id),

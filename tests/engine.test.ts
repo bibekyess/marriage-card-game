@@ -248,8 +248,79 @@ describe("review fixes", () => {
       table.declare(host);
       return table.s.reveal!.players.find((p) => p.id === host)!.breakdown.tunnels;
     };
-    expect(scoreFor(a)).toBe(1);
-    expect(scoreFor(b)).toBe(1);
+    // Tunnels only score when shown at the start, so a held one is worth nothing however it's arranged.
+    expect(scoreFor(a)).toBe(0);
+    expect(scoreFor(b)).toBe(0);
+  });
+
+  describe("tunnela shown at the start", () => {
+    const deal = (hand: string[]) => {
+      const { table, host, guest } = twoPlayer();
+      const g = table.s.game!;
+      const turn = table.s.seats.findIndex((x) => x.id === host);
+      g.turn = turn;
+      g.phase = "draw";
+      g.hands[host] = [...hand];
+      return { table, host, guest, g };
+    };
+    const filler = ["2C0", "4D0", "6S0", "8H0", "10C0", "QD0", "KS0", "3H0", "5C0", "7D0", "9S0", "JH0"];
+
+    it("lets a player show tunnels only before their first draw", () => {
+      const { table, host, g } = deal(["9C0", "9C1", "9C2", "4H0", "5H0", "6H0", "AS0", "2S0", "3S0", ...filler]);
+      expect(table.view(host).canOpenTunnels).toBe(true);
+      table.openTunnels(host);
+      expect(g.opened![host]).toEqual([["9C0", "9C1", "9C2"]]);
+      expect(g.hands[host]).toHaveLength(18);
+      expect(table.view(host).setsNeeded).toBe(2);
+      expect(table.view(host).canOpenTunnels).toBe(false);
+      // The remaining two pure sets are enough to see the maal.
+      table.show(host, "pure");
+      expect(g.seen[host]).toBe("pure");
+      expect(g.shown[host]).toHaveLength(3);
+    });
+
+    it("refuses the opening show once the player has drawn", () => {
+      const { table, host, guest, g } = deal(["9C0", "9C1", "9C2", ...filler, "4H0", "5H0", "6H0", "AS0", "2S0", "3S0"]);
+      table.draw(host, "stock");
+      table.discard(host, g.hands[host].find((c) => !c.startsWith("9C"))!);
+      table.draw(guest, "stock");
+      table.discard(guest, g.hands[guest][0]);
+      expect(table.view(host).canOpenTunnels).toBe(false);
+      expect(() => table.openTunnels(host)).toThrow(/before your first draw/);
+    });
+
+    it("sees the maal at once with three tunnels", () => {
+      const { table, host, g } = deal(["9C0", "9C1", "9C2", "KD0", "KD1", "KD2", "4S0", "4S1", "4S2", ...filler]);
+      table.openTunnels(host);
+      expect(g.seen[host]).toBe("pure");
+      expect(table.view(host).maal).toBe(g.maal);
+    });
+
+    it("scores opened tunnels only if the maal was seen", () => {
+      const settle = (seen: boolean) => {
+        const { table, host, guest, g } = deal(["9C0", "9C1", "9C2", ...filler, "AS0", "2S0", "3S0", "4H0", "5H0", "6H0"]);
+        table.openTunnels(host);
+        g.maal = "2S0";
+        if (seen) g.seen[host] = "pure";
+        // The guest wins straight away.
+        g.turn = table.s.seats.findIndex((x) => x.id === guest);
+        g.phase = "discard";
+        g.seen[guest] = "pure";
+        g.shown[guest] = [["AD0", "2D0", "3D0"], ["7S0", "8S0", "9S2"], ["JH0", "QH0", "KH0"]];
+        g.hands[guest] = ["9H0", "9D0", "9S0", "4H1", "5H1", "6H1", "KC1", "KD1", "KS1", "6C0", "7C0", "8C0", "3C1"];
+        g.picked = null;
+        table.declare(guest);
+        return table.s.reveal!.players.find((p) => p.id === host)!.breakdown.tunnels;
+      };
+      expect(settle(true)).toBe(1);
+      expect(settle(false)).toBe(0);
+    });
+
+    it("closes the dublee route after showing tunnels", () => {
+      const { table, host } = deal(["9C0", "9C1", "9C2", ...filler, "4H0", "5H0", "6H0", "AS0", "2S0", "3S0"]);
+      table.openTunnels(host);
+      expect(() => table.show(host, "dublee")).toThrow(/pure sets/);
+    });
   });
 
   it("keeps the deal rotating after someone leaves", () => {
