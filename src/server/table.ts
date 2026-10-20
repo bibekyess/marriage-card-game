@@ -52,6 +52,8 @@ export interface RoundState {
   opened?: Record<string, CardId[][]>;
   /** Players who have drawn at least once this round. */
   started?: Record<string, true>;
+  /** Showed after drawing: the maal stays hidden from them until they throw a card. */
+  maalPending?: string | null;
 }
 
 export interface TableState {
@@ -431,7 +433,14 @@ export class Table {
     g.phase = "draw";
     g.drawn = null;
     g.picked = null;
+    g.maalPending = null;
     this.armTimer();
+  }
+
+  /** The maal as this player may use it: null until they've seen it (and thrown, if they showed after drawing). */
+  private maalFor(id: string): CardId | null {
+    const g = this.s.game;
+    return g && g.seen[id] && g.maalPending !== id ? g.maal : null;
   }
 
   private setsNeeded(id: string) {
@@ -489,7 +498,10 @@ export class Table {
     g.hands[id] = hand.filter((c) => !used.has(c));
     g.seen[id] = route;
     g.shown[id] = [...(g.shown[id] ?? []), ...groups!];
-    this.log(`${this.nameOf(id)} showed ${route === "dublee" ? "7 dublees" : `${need} pure set${need > 1 ? "s" : ""}`} and saw the maal.`);
+    // Shown before drawing: the maal is revealed now. After drawing: only once a card is thrown.
+    if (g.phase === "discard") g.maalPending = id;
+    const what = route === "dublee" ? "7 dublees" : `${need} pure set${need > 1 ? "s" : ""}`;
+    this.log(`${this.nameOf(id)} showed ${what}${g.maalPending === id ? "" : " and saw the maal"}.`);
   }
 
   /** Finish the round. With `groups`, the player's own sets are checked; otherwise the best finish is found. */
@@ -498,7 +510,7 @@ export class Table {
     const route = g.seen[id] ?? fail("Show your sets and see the maal before declaring.");
     const hand = g.hands[id];
     if (groups) {
-      const f = checkFinish(hand, g.maal, route, groups, preferDiscard ?? fail("Choose the card to throw."), g.picked);
+      const f = checkFinish(hand, this.maalFor(id), route, groups, preferDiscard ?? fail("Choose the card to throw."), g.picked);
       return typeof f === "string" ? fail(f) : this.finishRound(id, route, f);
     }
     const prefer = preferDiscard && hand.includes(preferDiscard) && preferDiscard !== g.picked ? preferDiscard : undefined;
@@ -506,7 +518,7 @@ export class Table {
     const f = prefer
       ? route === "dublee"
         ? findDubleeFinish(hand, opts)
-        : findFinish(hand, g.maal, opts)
+        : findFinish(hand, this.maalFor(id), opts)
       : this.bestFinish(id);
     if (!f) {
       if (prefer) return this.declare(id); // try any other card before giving up
@@ -608,7 +620,7 @@ export class Table {
     const g = this.g;
     return {
       hand: [...g.hands[id]],
-      maal: g.seen[id] ? g.maal : null,
+      maal: this.maalFor(id),
       route: g.seen[id] ?? null,
       dubleeAllowed: this.dubleeOk(),
       restrictPickup: this.s.settings.restrictPickup,
@@ -683,7 +695,7 @@ export class Table {
     const g = this.g;
     const hand = g.hands[id];
     const opts = { forbidden: g.picked };
-    const all = g.seen[id] === "dublee" ? allDubleeFinishes(hand, opts) : allFinishes(hand, g.maal, opts);
+    const all = g.seen[id] === "dublee" ? allDubleeFinishes(hand, opts) : allFinishes(hand, this.maalFor(id), opts);
     let best: Finish | null = null;
     let bestPts = -Infinity;
     const shown = g.shown[id] || [];
@@ -711,7 +723,7 @@ export class Table {
 
   view(id: string): TableView {
     const s = this.s, g = s.game;
-    const seen = !!g?.seen[id];
+    const maal = this.maalFor(id);
     const names = (s.names ??= {});
     for (const x of s.seats) names[x.id] = x.name;
     const finish = this.finishFor(id);
@@ -741,8 +753,8 @@ export class Table {
       discardTop: g?.discard[g.discard.length - 1] ?? null,
       discardBy: g?.discardBy ?? null,
       discardRecent: g?.discard.slice(-6) ?? [],
-      maal: g && seen ? g.maal : null,
-      maalHidden: !!g && !seen,
+      maal,
+      maalHidden: !!g && !maal,
       hand: g?.hands[id] ?? [],
       drawn: g && s.seats[g.turn]?.id === id ? g.drawn : null,
       picked: g && s.seats[g.turn]?.id === id ? g.picked : null,

@@ -233,6 +233,48 @@ describe("review fixes", () => {
     expect(g.turn).not.toBe(turn);
   });
 
+  it("reveals the maal at once when sets are shown before drawing", () => {
+    const { table, host } = twoPlayer();
+    const g = table.s.game!;
+    const sets = ["AD0", "2D0", "3D0", "7S0", "8S0", "9S2", "JH0", "QH0", "KH0"];
+    g.hands[host] = [...sets, ...g.hands[host].filter((c) => !sets.includes(c))].slice(0, 21);
+    table.show(host, "pure", sets);
+    expect(table.view(host).maal).toBe(g.maal);
+    expect(table.botView(host).maal).toBe(g.maal);
+  });
+
+  it("keeps the maal hidden until a card is thrown when sets are shown after drawing", () => {
+    const { table, host } = twoPlayer();
+    const g = table.s.game!;
+    const sets = ["AD0", "2D0", "3D0", "7S0", "8S0", "9S2", "JH0", "QH0", "KH0"];
+    g.hands[host] = [...sets, ...g.hands[host].filter((c) => !sets.includes(c))].slice(0, 21);
+    table.draw(host, "stock");
+    table.show(host, "pure", sets);
+    expect(g.seen[host]).toBe("pure");
+    expect(table.view(host).maal).toBeNull();
+    expect(table.view(host).maalHidden).toBe(true);
+    expect(table.botView(host).maal).toBeNull();
+    table.discard(host, g.hands[host][0]);
+    expect(table.view(host).maal).toBe(g.maal);
+    expect(table.view(host).maalHidden).toBe(false);
+  });
+
+  it("only allows natural sets to finish in the turn the sets were shown after drawing", () => {
+    const { table, host } = twoPlayer();
+    const g = table.s.game!;
+    g.maal = "5C0"; // the other 5C is a tiplu (wild) once the maal is seen
+    const sets = ["AD0", "2D0", "3D0", "7S0", "8S0", "9S2", "JH0", "QH0", "KH0"];
+    // 4H 6H only make a set with 5C as a wild; KC is the throw.
+    g.hands[host] = [...sets, "9D0", "9S0", "9H0", "2S0", "3S0", "4S0", "10C0", "JC0", "QC0", "4H0", "6H0", "5C1"];
+    g.phase = "discard";
+    g.turn = table.s.seats.findIndex((x) => x.id === host);
+    g.started = { [host]: true };
+    table.show(host, "pure", sets);
+    g.hands[host].push("KC0");
+    expect(table.view(host).canDeclare).toBe(false);
+    expect(() => table.declare(host)).toThrow(/complete sets/);
+  });
+
   it("scores a winner's tunnel no matter how the hand is arranged", () => {
     const maal = "2S0";
     const a = ["9H0", "9D0", "9C0", "9C1", "9H1", "9S0", "9C2", "9D1", "9S1", "4H0", "5H0", "6H0", "KC1"];
