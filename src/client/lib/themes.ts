@@ -20,8 +20,8 @@ export const THEMES: ThemeInfo[] = [
 
 const listeners = new Set<() => void>();
 let current: ThemeId = (() => {
-  const t = pref<string>("theme", "classic");
-  return THEMES.some((x) => x.id === t) ? (t as ThemeId) : "classic";
+  const t = pref<string>("theme", "glow");
+  return THEMES.some((x) => x.id === t) ? (t as ThemeId) : "glow";
 })();
 
 const BROWSER_BAR: Record<ThemeId, string> = { classic: "#07120f", royal: "#1a0508", kite: "#061a2b", glow: "#050d0a" };

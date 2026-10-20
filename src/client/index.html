@@ -7,7 +7,7 @@
     <script>
       // Apply the saved table look before anything paints.
       try {
-        var t = JSON.parse(localStorage.getItem("mg.pref.theme") || '"classic"');
+        var t = JSON.parse(localStorage.getItem("mg.pref.theme") || '"glow"');
         document.documentElement.dataset.theme = t;
         var c = { royal: "#1a0508", kite: "#061a2b", glow: "#050d0a" }[t];
         if (c) document.querySelector('meta[name="theme-color"]').setAttribute("content", c);
