@@ -29,7 +29,7 @@ services:
       PORT: "3000"
       TRUST_PROXY: ${TRUST_PROXY:-}
     ports:
-      - "${APP_PORT:-3000}:3000"
+      - "${APP_PORT:-9062}:3000"
 
 volumes:
   pgdata:
