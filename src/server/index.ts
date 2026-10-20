@@ -1,6 +1,6 @@
 import express from "express";
 import { createServer } from "node:http";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Server, Socket } from "socket.io";
@@ -18,10 +18,15 @@ export interface ServerOptions {
   clientDir?: string | null;
   /** Enables /admin (HTTP Basic, any username). Defaults to ADMIN_TOKEN; unset or under 16 characters means no admin page. */
   adminToken?: string;
+  /** Base URL of Umami (e.g. http://umami:3000); enables the /stats proxy. Defaults to UMAMI_URL. */
+  umamiUrl?: string;
+  /** Umami website id; when set the tracker script is injected into index.html. Defaults to UMAMI_WEBSITE_ID. */
+  umamiWebsiteId?: string;
   /** Link shown on the admin page. Defaults to UMAMI_DASHBOARD_URL. */
   umamiDashboardUrl?: string;
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const httpUrl = (x: string | undefined) => (x && /^https?:\/\//i.test(x.trim()) ? x.trim() : undefined);
 
 const MIN_ADMIN_TOKEN = 16;
@@ -46,6 +51,8 @@ export async function startServer(opts: ServerOptions) {
   const adminToken = configuredToken.length >= MIN_ADMIN_TOKEN ? configuredToken : "";
   if (configuredToken && !adminToken)
     console.error(`ADMIN_TOKEN is shorter than ${MIN_ADMIN_TOKEN} characters, so /admin stays off. Try: openssl rand -hex 32`);
+  const umamiUrl = httpUrl(opts.umamiUrl ?? process.env.UMAMI_URL)?.replace(/\/+$/, "");
+  const websiteId = (opts.umamiWebsiteId ?? process.env.UMAMI_WEBSITE_ID ?? "").trim();
   const events = new EventLog(store, adminToken);
   const tables = new Map<string, Table>();
   const timers = new Map<string, NodeJS.Timeout>();
@@ -116,6 +123,56 @@ export async function startServer(opts: ServerOptions) {
   }
 
   app.use("/admin", (_req, res) => res.status(404).type("text").send("Not found"));
+
+  // ---------- Umami (same-origin proxy, so ad blockers and CORS don't get in the way) ----------
+
+  if (umamiUrl) {
+    const sendHits = new Map<string, number[]>();
+    let script: { body: string; at: number } | null = null;
+    // One shared refresh at a time, and after a failure no new attempt for a minute.
+    let refreshing: Promise<void> | null = null;
+    let retryAt = 0;
+    const refreshScript = () =>
+      (refreshing ??= (async () => {
+        try {
+          const r = await fetch(`${umamiUrl}/script.js`, { signal: AbortSignal.timeout(5000) });
+          if (!r.ok) throw new Error(`status ${r.status}`);
+          script = { body: await r.text(), at: Date.now() };
+        } catch {
+          retryAt = Date.now() + 60_000;
+        } finally {
+          refreshing = null;
+        }
+      })());
+    app.get("/stats/s.js", async (_req, res) => {
+      // Keep serving the last good copy if Umami is briefly down.
+      if ((!script || Date.now() - script.at > 10 * 60_000) && Date.now() >= retryAt) await refreshScript();
+      if (!script) return res.status(502).end();
+      res.type("application/javascript").set("Cache-Control", "public, max-age=600").send(script.body);
+    });
+    // The tracker posts to `${data-host-url}/api/send`.
+    app.post("/stats/api/send", express.raw({ type: () => true, limit: "16kb" }), async (req, res) => {
+      if (limited(sendHits, req.ip ?? "?", 120)) return res.status(429).end();
+      const headers: Record<string, string> = { "content-type": "application/json", "x-forwarded-for": req.ip ?? "" };
+      for (const h of ["user-agent", "accept-language", "x-umami-cache", "x-umami-website-id", "x-umami-hostname"]) {
+        const v = req.headers[h];
+        if (typeof v === "string") headers[h] = v;
+      }
+      try {
+        const r = await fetch(`${umamiUrl}/api/send`, {
+          method: "POST",
+          headers,
+          body: Buffer.isBuffer(req.body) ? new Uint8Array(req.body) : "{}",
+          signal: AbortSignal.timeout(5000),
+        });
+        res.status(r.status).type(r.headers.get("content-type") ?? "application/json").send(Buffer.from(await r.arrayBuffer()));
+      } catch {
+        // Stats are optional: a dead Umami must never show up as a game problem.
+        res.status(502).end();
+      }
+    });
+  }
+
   app.use("/api", (_req, res) => res.status(404).json({ ok: false, error: "Not found" }));
 
   // Serve the built client (production). In development Vite serves it.
@@ -129,11 +186,23 @@ export async function startServer(opts: ServerOptions) {
     app.use("/assets", express.static(path.join(clientDir, "assets"), { maxAge: "1y", immutable: true, index: false }));
     app.use("/assets", (_req, res) => res.status(404).end());
     app.use(express.static(clientDir, { maxAge: "1h", index: false }));
+    // With a website id, serve index.html with the Umami tracker added (read once at startup).
+    let indexHtml: string | null = null;
+    if (umamiUrl && UUID.test(websiteId)) {
+      try {
+        const raw = readFileSync(path.join(clientDir, "index.html"), "utf8");
+        const tag = `<script defer src="/stats/s.js" data-website-id="${websiteId}" data-host-url="/stats" data-exclude-search="true"></script>`;
+        if (raw.includes("</head>")) indexHtml = raw.replace("</head>", `${tag}</head>`);
+      } catch (e) {
+        console.error("couldn't prepare index.html for Umami", (e as Error).message);
+      }
+    } else if (websiteId) console.error("UMAMI_WEBSITE_ID needs UMAMI_URL and must be a UUID; tracker not added");
     app.get("*", (req, res) => {
       // Only the real client routes count as visits (same shapes as lib/router.ts), not scanner junk.
       if (req.path === "/" || /^\/t\/[A-Za-z]{4}\/?$/.test(req.path)) events.visit(req.ip);
       res.setHeader("Cache-Control", "no-cache");
-      res.sendFile(path.join(clientDir, "index.html"));
+      if (indexHtml) res.type("html").send(indexHtml);
+      else res.sendFile(path.join(clientDir, "index.html"));
     });
   }
 

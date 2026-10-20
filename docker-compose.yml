@@ -28,10 +28,61 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-marriage}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-marriage}
       PORT: "3000"
       TRUST_PROXY: ${TRUST_PROXY:-}
+      # Admin page at /admin (off when empty).
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      # Visitor stats; all optional. UMAMI_URL turns on the /stats proxy (set it to http://umami:3000
+      # when using the "stats" profile), UMAMI_WEBSITE_ID adds the tracker to the page.
+      UMAMI_URL: ${UMAMI_URL:-}
+      UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
+      UMAMI_DASHBOARD_URL: ${UMAMI_DASHBOARD_URL:-}
     # Localhost only: a reverse proxy on the host (e.g. Caddy) serves it publicly, and
     # nobody can bypass the proxy to forge X-Forwarded-For when TRUST_PROXY is on.
     ports:
       - "127.0.0.1:${APP_PORT:-9062}:3000"
 
+  # Visitor stats (Umami). Opt-in: docker compose --profile stats up -d
+  # Needs UMAMI_APP_SECRET and UMAMI_DB_PASSWORD in .env (Postgres refuses an empty password too).
+  # See README "Monitoring".
+  umami-db:
+    profiles: [stats]
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: umami
+      POSTGRES_PASSWORD: ${UMAMI_DB_PASSWORD:-}
+      POSTGRES_DB: umami
+    volumes:
+      - umamidata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U umami -d umami"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  umami:
+    profiles: [stats]
+    image: ghcr.io/umami-software/umami:3.4.0
+    init: true
+    restart: unless-stopped
+    depends_on:
+      umami-db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://umami:${UMAMI_DB_PASSWORD:-}@umami-db:5432/umami
+      APP_SECRET: ${UMAMI_APP_SECRET:-}
+    # Compose can't require the secret only when this profile is on (":?" would break every
+    # `docker compose` command without it), so the container refuses to start with an empty one.
+    # The command repeats the image's default, which setting an entrypoint would otherwise drop.
+    entrypoint:
+      - sh
+      - -c
+      - '[ -n "$$APP_SECRET" ] || { echo "UMAMI_APP_SECRET is empty: set it in .env" >&2; exit 1; }; exec docker-entrypoint.sh "$$@"'
+      - umami
+    command: ["sh", "scripts/start-docker.sh"]
+    # Localhost only: reach the dashboard through an SSH tunnel or your reverse proxy.
+    ports:
+      - "127.0.0.1:${UMAMI_PORT:-9063}:3000"
+
 volumes:
   pgdata:
+  umamidata:

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { createServer, IncomingMessage, Server as HttpServer } from "node:http";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { io as connect, Socket } from "socket.io-client";
@@ -12,17 +13,26 @@ import type { Ack, RoundRow } from "../src/shared/protocol";
 
 const servers: Awaited<ReturnType<typeof startServer>>[] = [];
 const sockets: Socket[] = [];
+const upstreams: HttpServer[] = [];
 
 afterEach(async () => {
   sockets.splice(0).forEach((s) => s.disconnect());
   for (const s of servers.splice(0)) await s.close();
+  for (const u of upstreams.splice(0)) u.close();
 });
 
 async function boot(extra: Partial<ServerOptions> = {}) {
   const store = new MemoryStore();
-  const srv = await startServer({ port: 0, store, delayScale: 0, clientDir: null, adminToken: "", umamiDashboardUrl: "", ...extra });
+  const srv = await startServer({ port: 0, store, delayScale: 0, clientDir: null, adminToken: "", umamiUrl: "", umamiWebsiteId: "", umamiDashboardUrl: "", ...extra });
   servers.push(srv);
   return { srv, store, base: `http://localhost:${srv.port}` };
+}
+
+function clientDir() {
+  const dir = mkdtempSync(path.join(tmpdir(), "mg-client-"));
+  mkdirSync(path.join(dir, "assets"));
+  writeFileSync(path.join(dir, "index.html"), "<!doctype html><html><head><title>x</title></head><body>app</body></html>");
+  return dir;
 }
 
 function call<T = any>(port: number, ev: string, payload: unknown): Promise<Ack<T>> {
@@ -191,9 +201,7 @@ describe("match stats", () => {
 
 describe("admin page", () => {
   it("does not exist without a token, not even for the client app", async () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "mg-client-"));
-    writeFileSync(path.join(dir, "index.html"), "<!doctype html><html><head></head><body>app</body></html>");
-    const { base, store } = await boot({ adminToken: "", clientDir: dir });
+    const { base, store } = await boot({ clientDir: clientDir() });
     for (const p of ["/admin", "/admin/", "/admin/x"]) {
       const r = await fetch(`${base}${p}`, { headers: basic("anything") });
       expect(r.status).toBe(404);
@@ -248,6 +256,117 @@ describe("admin page", () => {
     expect((await fetch(`${base}/admin`, { headers: basic(TOKEN) })).status).toBe(200);
     // Logging in cleared the count.
     expect((await fetch(`${base}/admin`, { headers: basic("nope") })).status).toBe(401);
+  });
+});
+
+describe("Umami", () => {
+  const ID = "123e4567-e89b-12d3-a456-426614174000";
+  async function fakeUmami() {
+    const seen: { headers: IncomingMessage["headers"]; body: string; url?: string }[] = [];
+    const up = createServer((req, res) => {
+      let body = "";
+      req.on("data", (c) => (body += c));
+      req.on("end", () => {
+        seen.push({ headers: req.headers, body, url: req.url });
+        if (req.url === "/script.js") return res.end("/* tracker */");
+        res.setHeader("content-type", "application/json");
+        res.end('{"cache":"abc"}');
+      });
+    });
+    await new Promise<void>((r) => up.listen(0, r));
+    upstreams.push(up);
+    return { seen, url: `http://127.0.0.1:${(up.address() as any).port}` };
+  }
+
+  it("adds the tracker only when a website id is set", async () => {
+    const up = await fakeUmami();
+    const plain = await boot({ clientDir: clientDir(), umamiUrl: up.url });
+    expect(await (await fetch(`${plain.base}/`)).text()).not.toContain("/stats/s.js");
+    await plain.srv.close();
+    servers.pop();
+
+    const { base } = await boot({ clientDir: clientDir(), umamiUrl: up.url, umamiWebsiteId: ID });
+    const html = await (await fetch(`${base}/`)).text();
+    expect(html).toContain(`<script defer src="/stats/s.js" data-website-id="${ID}" data-host-url="/stats" data-exclude-search="true"></script></head>`);
+    const bad = await boot({ clientDir: clientDir(), umamiUrl: up.url, umamiWebsiteId: "not-a-uuid" });
+    expect(await (await fetch(`${bad.base}/`)).text()).not.toContain("/stats/s.js");
+  });
+
+  it("counts a visit for the real pages only, once per visitor", async () => {
+    const { base, store } = await boot({ clientDir: clientDir() });
+    for (const p of ["/", "/t/ABCD", "/t/abcd/"]) await fetch(`${base}${p}`);
+    expect((await types(store)).filter((t) => t === "visit")).toHaveLength(1);
+  });
+
+  it("still serves the app for unknown paths but does not count them", async () => {
+    const { base, store } = await boot({ clientDir: clientDir() });
+    for (const p of ["/wp-admin", "/.env", "/xmlrpc.php", "/t/ABC", "/t/ABCDE", "/missing.js"]) await fetch(`${base}${p}`);
+    expect((await fetch(`${base}/wp-admin`)).status).toBe(200);
+    expect(await types(store)).toEqual([]);
+  });
+
+  it("proxies the script and events, passing on the client address", async () => {
+    const up = await fakeUmami();
+    const { base } = await boot({ umamiUrl: up.url });
+    const js = await fetch(`${base}/stats/s.js`);
+    expect(await js.text()).toBe("/* tracker */");
+    const r = await fetch(`${base}/stats/api/send`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "user-agent": "TestAgent/1", "x-forwarded-for": "6.6.6.6" },
+      body: JSON.stringify({ type: "event", payload: { website: ID } }),
+    });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ cache: "abc" });
+    const sent = up.seen.find((x) => x.url === "/api/send")!;
+    expect(sent.headers["user-agent"]).toBe("TestAgent/1");
+    // TRUST_PROXY is off, so the spoofed header is ignored and the real socket address is used.
+    expect(sent.headers["x-forwarded-for"]).toMatch(/127\.0\.0\.1$/);
+    expect(JSON.parse(sent.body).type).toBe("event");
+  });
+
+  it("keeps serving the last script when a refresh fails", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const up = await fakeUmami();
+      const { base } = await boot({ umamiUrl: up.url });
+      expect(await (await fetch(`${base}/stats/s.js`)).text()).toBe("/* tracker */");
+      upstreams[0].closeAllConnections();
+      await new Promise((r) => upstreams[0].close(r));
+      vi.advanceTimersByTime(11 * 60_000);
+      const again = await fetch(`${base}/stats/s.js`);
+      expect(again.status).toBe(200);
+      expect(await again.text()).toBe("/* tracker */");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shares one script fetch between parallel requests and backs off after a failure", async () => {
+    const up = await fakeUmami();
+    const ok = await boot({ umamiUrl: up.url });
+    await Promise.all([1, 2, 3, 4, 5].map(() => fetch(`${ok.base}/stats/s.js`)));
+    expect(up.seen.filter((x) => x.url === "/script.js")).toHaveLength(1);
+
+    let hits = 0;
+    const broken = createServer((_req, res) => {
+      hits++;
+      res.statusCode = 500;
+      res.end();
+    });
+    await new Promise<void>((r) => broken.listen(0, r));
+    upstreams.push(broken);
+    const bad = await boot({ umamiUrl: `http://127.0.0.1:${(broken.address() as any).port}` });
+    for (let i = 0; i < 3; i++) expect((await fetch(`${bad.base}/stats/s.js`)).status).toBe(502);
+    expect(hits).toBe(1);
+  });
+
+  it("answers 502 when Umami is down and 413 for huge bodies", async () => {
+    const { base } = await boot({ umamiUrl: "http://127.0.0.1:1" });
+    expect((await fetch(`${base}/stats/s.js`)).status).toBe(502);
+    const r = await fetch(`${base}/stats/api/send`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+    expect(r.status).toBe(502);
+    const big = await fetch(`${base}/stats/api/send`, { method: "POST", headers: { "content-type": "application/json" }, body: "x".repeat(20_000) });
+    expect(big.status).toBe(413);
   });
 });
 
