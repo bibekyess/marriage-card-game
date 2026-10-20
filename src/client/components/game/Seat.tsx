@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import type { SeatView } from "../../../shared/protocol";
 import { Avatar } from "./Avatar";
 import { PlayingCard } from "./PlayingCard";
+import { TunnelTag } from "./TunnelTag";
 import { useTheme } from "@/lib/themes";
 
 interface Props {
@@ -107,7 +108,8 @@ export function Seat({ seat, active, dealer, progress, maal, size = 46, showSets
           aria-label={`${seat.name}'s shown sets`}
         >
           {seat.shown.map((g, i) => (
-            <div key={i} className="flex rounded-[4px] bg-black/30 p-[2px]">
+            <div key={i} className="relative flex rounded-[4px] bg-black/30 p-[2px]">
+              {i < (seat.tunnels ?? 0) && <TunnelTag size={Math.max(12, Math.round(setCw * 0.7))} />}
               {g.map((c, j) => (
                 <PlayingCard key={c} id={c} width={setCw} maal={maal} style={{ marginLeft: j ? -Math.round(setCw * 0.42) : 0 }} className="!shadow-none" />
               ))}

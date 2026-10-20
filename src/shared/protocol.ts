@@ -15,6 +15,8 @@ export interface SeatView {
   cardCount: number;
   seen: Route | null;
   shown: CardId[][];
+  /** The first `tunnels` sets in `shown` are tunnela shown before the first draw. */
+  tunnels?: number;
   /** Cards this player has thrown this round, oldest first. Public, like a real discard pile. */
   thrown: ThrownCard[];
 }
@@ -44,6 +46,8 @@ export interface RoundReveal {
     id: string;
     seen: boolean;
     shown: CardId[][];
+    /** The first `tunnels` sets in `shown` are tunnela shown before the first draw. */
+    tunnels?: number;
     groups: CardId[][]; // winner's final sets
     hand: CardId[];
     maal: number;

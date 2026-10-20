@@ -319,6 +319,8 @@ describe("review fixes", () => {
       table.show(host, "pure");
       expect(g.seen[host]).toBe("pure");
       expect(g.shown[host]).toHaveLength(3);
+      // Only the opening tunnel is tagged as tunnela, not the pure sets shown later.
+      expect(table.view(host).seats.find((x) => x.id === host)!.tunnels).toBe(1);
     });
 
     it("refuses the opening show once the player has drawn", () => {

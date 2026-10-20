@@ -8,6 +8,7 @@ import { Piles } from "@/components/game/Piles";
 import { Seat } from "@/components/game/Seat";
 import { ThrownDialog } from "@/components/game/ThrownDialog";
 import { PlayingCard } from "@/components/game/PlayingCard";
+import { TunnelTag } from "@/components/game/TunnelTag";
 import { Avatar } from "@/components/game/Avatar";
 import { FeltPattern, TableDecor, THEME_FELT } from "@/components/theme/decor";
 import { useTheme } from "@/lib/themes";
@@ -507,7 +508,8 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
             {me && me.shown.length > 0 && (
               <div className="flex max-w-[45vw] items-center gap-1 overflow-x-auto">
                 {me.shown.map((g, i) => (
-                  <div key={i} className="flex shrink-0 rounded bg-black/30 p-[2px]">
+                  <div key={i} className="relative flex shrink-0 rounded bg-black/30 p-[2px]">
+                    {i < (me.tunnels ?? 0) && <TunnelTag size={13} className="left-0 top-0" />}
                     {g.map((c, j) => (
                       <PlayingCard key={c} id={c} width={20} maal={v.maal} style={{ marginLeft: j ? -8 : 0 }} />
                     ))}

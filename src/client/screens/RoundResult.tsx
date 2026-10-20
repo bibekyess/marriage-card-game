@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PlayingCard } from "@/components/game/PlayingCard";
+import { TunnelTag } from "@/components/game/TunnelTag";
 import { Avatar } from "@/components/game/Avatar";
 import { act } from "@/lib/store";
 import { nameOf, signed, totals } from "@/lib/format";
@@ -11,11 +12,12 @@ import { cn } from "@/lib/utils";
 import type { TableView } from "../../shared/protocol";
 import { cardLabel } from "../../shared/cards";
 
-function Cards({ groups, loose, maal }: { groups: string[][]; loose: string[]; maal: string }) {
+function Cards({ groups, loose, maal, tunnels = 0 }: { groups: string[][]; loose: string[]; maal: string; tunnels?: number }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {groups.map((g, i) => (
-        <div key={i} className="flex rounded-md bg-emerald-400/10 p-[3px] ring-1 ring-emerald-400/25">
+        <div key={i} className="relative flex rounded-md bg-emerald-400/10 p-[3px] ring-1 ring-emerald-400/25">
+          {i < tunnels && <TunnelTag size={16} />}
           {g.map((c, j) => (
             <PlayingCard key={c} id={c} width={26} maal={maal} style={{ marginLeft: j ? -9 : 0 }} />
           ))}
@@ -95,7 +97,7 @@ export function RoundResult({ view: v, open, onOpenChange, onScores }: { view: T
                   </div>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <Cards groups={[...p.shown, ...p.groups]} loose={p.hand} maal={r.maal} />
+                  <Cards groups={[...p.shown, ...p.groups]} loose={p.hand} maal={r.maal} tunnels={p.tunnels} />
                 </div>
                 <div className="grid shrink-0 grid-cols-3 gap-3 text-right sm:w-[190px]">
                   <div>
