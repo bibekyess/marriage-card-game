@@ -13,9 +13,9 @@ Play **Nepali Marriage** with family and friends from any phone or computer. No 
 ## Run it
 
 ```bash
-cp .env.example .env        # optional: change ports / database password
+cp .env.example .env        # then set POSTGRES_PASSWORD (required)
 docker compose up -d --build
-open http://localhost:3000
+open http://localhost:9062
 ```
 
 This starts two containers: `db` (postgres:16-alpine, data in the `pgdata` volume) and `app` (Node 22). `bash scripts/smoke.sh --down` builds the stack, waits for `/api/health`, then tears it down.

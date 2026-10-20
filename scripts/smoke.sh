@@ -6,12 +6,15 @@ cd "$(dirname "$0")/.."
 
 DOWN=0
 [ "${1:-}" = "--down" ] && DOWN=1
-URL="http://localhost:${APP_PORT:-3000}/api/health"
+URL="http://localhost:${APP_PORT:-9062}/api/health"
 
 finish() {
   if [ "$DOWN" = 1 ]; then docker compose down; fi
   exit "$1"
 }
+
+# Compose requires a DB password; use a throwaway one when there is no .env.
+[ -f .env ] || export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-smoke-test}"
 
 docker compose up -d --build || { echo "FAIL: docker compose up failed"; finish 1; }
 

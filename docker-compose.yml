@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-marriage}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-marriage}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-marriage}
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -25,7 +25,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-marriage}:${POSTGRES_PASSWORD:-marriage}@db:5432/${POSTGRES_DB:-marriage}
+      DATABASE_URL: postgres://${POSTGRES_USER:-marriage}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-marriage}
       PORT: "3000"
       TRUST_PROXY: ${TRUST_PROXY:-}
     ports:
