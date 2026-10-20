@@ -1,4 +1,4 @@
-import { card, CardId, faceKey, isWild, maalKind } from "./cards";
+import { card, CardId, cardLabel, faceKey, isWild, maalKind } from "./cards";
 import {
   completesPure,
   findDubleeFinish,
@@ -9,6 +9,7 @@ import {
   findShow,
   Finish,
   isMeld,
+  isPure,
 } from "./melds";
 import { Route } from "./protocol";
 
@@ -99,13 +100,14 @@ export function chooseDraw(v: BotView): "stock" | "discard" {
   return "stock";
 }
 
-export function chooseDiscard(v: BotView): CardId {
+/** The card to throw. `jitter` breaks ties at random (bots); tips leave it off so they don't flicker. */
+export function chooseDiscard(v: BotView, jitter = true): CardId {
   const values = cardValues(v.hand, v.maal, v.route, v.dubleeAllowed);
   let best: CardId | null = null;
   let bestV = Infinity;
   for (const c of v.hand) {
     if (c === v.picked) continue;
-    const x = values.get(c)! + Math.random() * 0.2;
+    const x = values.get(c)! + (jitter ? Math.random() * 0.2 : 0);
     if (x < bestV) {
       bestV = x;
       best = c;
@@ -136,4 +138,59 @@ export function choosePlay(v: BotView): BotPlan {
     }
   }
   return { kind: "discard", card: chooseDiscard(v) };
+}
+
+// ---------- tips for human players (same judgement as the bots) ----------
+
+export interface Tip {
+  /** The card to throw, for a discard tip. */
+  card?: CardId;
+  /** Which pile to draw from, for a draw tip. */
+  pile?: "stock" | "discard";
+  text: string;
+}
+
+const labels = (ids: CardId[]) => ids.map(cardLabel).join(" ");
+
+/** Cards in the hand that work with `a`: same face, or same suit within two ranks (or same rank once seen). */
+function neighbours(hand: CardId[], a: CardId, maal: CardId | null, seen: boolean): CardId[] {
+  const ca = card(a);
+  return hand.filter((b) => {
+    if (b === a || (seen && isWild(b, maal))) return false;
+    const cb = card(b);
+    if (faceKey(a) === faceKey(b)) return true;
+    if (ca.suit === cb.suit) return rankGap(ca.rank, cb.rank) <= 2;
+    return seen && ca.rank === cb.rank;
+  });
+}
+
+/** Which card to throw, and why. */
+export function discardTip(v: BotView): Tip {
+  const c = chooseDiscard(v, false);
+  const seen = v.route !== null;
+  const dubleeMode = v.route === "dublee" || (!seen && prefersDublee(v.hand, v.dubleeAllowed));
+  if (dubleeMode) return { card: c, text: `Throw ${cardLabel(c)}: it isn't part of a dublee.` };
+  if (!seen && findPureSets(v.hand, 3).some((g) => g.includes(c)))
+    return { card: c, text: `Every card is in a set; ${cardLabel(c)} breaks the least.` };
+  const near = neighbours(v.hand, c, v.maal, seen);
+  if (!near.length) return { card: c, text: `Throw ${cardLabel(c)}: it doesn't connect with any of your cards.` };
+  return { card: c, text: `Throw ${cardLabel(c)}: it's your weakest link (only ${labels(near.slice(0, 2))} nearby).` };
+}
+
+/** Which pile to draw from, and why. */
+export function drawTip(v: BotView): Tip {
+  const top = v.discardTop;
+  if (!top || chooseDraw(v) === "stock") return { pile: "stock", text: "Draw from the stock: the discard doesn't help you." };
+  const seen = v.route !== null;
+  const t = cardLabel(top);
+  const same = v.hand.find((c) => faceKey(c) === faceKey(top));
+  if (v.route === "dublee" || (!seen && prefersDublee(v.hand, v.dubleeAllowed)))
+    return { pile: "discard", text: `Take the ${t}: it makes a dublee with your ${cardLabel(same!)}.` };
+  if (seen && isWild(top, v.maal)) return { pile: "discard", text: `Take the ${t}: it's a wild card.` };
+  const ok = (a: CardId, b: CardId) => (seen ? isMeld([a, b, top], v.maal) : isPure([a, b, top]));
+  const hand = seen ? v.hand.filter((c) => !isWild(c, v.maal)) : v.hand;
+  for (let i = 0; i < hand.length; i++)
+    for (let j = i + 1; j < hand.length; j++)
+      if (ok(hand[i], hand[j])) return { pile: "discard", text: `Take the ${t}: it completes ${labels([hand[i], hand[j]])}.` };
+  return { pile: "discard", text: `Take the ${t}.` };
 }

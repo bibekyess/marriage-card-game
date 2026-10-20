@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownUp, ArrowDownToLine, ArrowUp, BarChart3, Eye, Layers, Menu, Sparkles, Trophy, WandSparkles, WifiOff } from "lucide-react";
+import { ArrowDownUp, ArrowDownToLine, ArrowUp, BarChart3, Eye, Layers, Lightbulb, Menu, Sparkles, Trophy, WandSparkles, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -22,6 +22,7 @@ import { MenuSheet } from "./MenuSheet";
 import { CardId, cardLabel, sortByRank, sortBySuit } from "../../shared/cards";
 import { checkFinish, findDubleeFinish, findFinish, findTunnels, isMeld, MELD_LABEL, meldType } from "../../shared/melds";
 import type { TableView } from "../../shared/protocol";
+import { BotView, discardTip, drawTip, Tip } from "../../shared/bot";
 import { dubleesAllowed, MAX_PLAYERS } from "../../shared/settings";
 
 function useViewport() {
@@ -250,7 +251,31 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   };
   const showState = seated && !me?.autoplay ? computeShowState(v, h, selected, connected && h.myTurn) : null;
   const tunnels = canDraw && v.canOpenTunnels ? findTunnels(v.hand) : [];
-  const tunnelGlow = new Set(tunnels.flat());
+
+  // Tips use the bots' judgement on your own hand only. A tip is for this moment, so it clears on any change.
+  const [tip, setTip] = useState<Tip | null>(null);
+  useEffect(() => setTip(null), [v.hand, v.phase, v.turn]);
+  const showTip = () => {
+    let t: Tip;
+    if (v.canOpenTunnels && canDraw) t = { text: "Show your tunnela first: they only score if you show them before drawing." };
+    else if (finishing && h.canDeclare) t = { text: "You can finish now: lay down your sets, or tap Arrange for me." };
+    else {
+      const bv: BotView = {
+        hand: v.hand,
+        maal: v.maal,
+        route: h.seen,
+        dubleeAllowed: h.dubleeOk,
+        restrictPickup: v.settings.restrictPickup,
+        discardTop: v.discardTop,
+        picked: v.picked,
+        setsNeeded: h.setsNeeded,
+      };
+      t = canDraw ? drawTip(bv) : discardTip(bv);
+    }
+    setTip(t);
+    toast(t.text, { id: "tip", duration: 6000, icon: "💡" });
+  };
+  const glow = new Set([...tunnels.flat(), ...(tip?.card ? [tip.card] : [])]);
 
   let hint = "";
   if (!playing) hint = v.status === "matchEnd" ? "Match over" : "Round over";
@@ -486,6 +511,11 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
                   <Layers /> {vp.w < 520 ? MELD_LABEL[selectedMeld] : `Group · ${MELD_LABEL[selectedMeld]}`}
                 </Button>
               )}
+              {(canDraw || discardPhase) && !me?.autoplay && (
+                <Button size="icon" variant="secondary" className={cn("h-9 w-9", toolBtn)} onClick={showTip} aria-label="Tip" title="Tip" data-testid="tip">
+                  <Lightbulb />
+                </Button>
+              )}
               <Button
                 size="icon"
                 variant="secondary"
@@ -549,7 +579,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
               maal={v.maal}
               selected={selected}
               drawn={v.drawn}
-              glow={tunnelGlow}
+              glow={glow}
               cardWidth={handCw}
               onToggle={toggle}
               onReorder={(o, moved) => arrangeGroups(o, moved ? afterDrag(groups, o, moved) : groups)}
