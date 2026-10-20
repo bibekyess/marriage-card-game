@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Server, Socket } from "socket.io";
 import { Ack, Route } from "../shared/protocol";
+import { basicAuthOk, LiveTable, renderAdmin } from "./admin";
 import type { Store } from "./db";
 import { DAY_MS, EventLog } from "./events";
 import { GameError, Table } from "./table";
@@ -15,10 +16,17 @@ export interface ServerOptions {
   /** Multiplies bot/timer delays; tests use 0 for instant bots. */
   delayScale?: number;
   clientDir?: string | null;
-  /** Salt for stored visitor-address hashes. Defaults to ADMIN_TOKEN. */
+  /** Enables /admin (HTTP Basic, any username). Defaults to ADMIN_TOKEN; unset or under 16 characters means no admin page. */
   adminToken?: string;
+  /** Link shown on the admin page. Defaults to UMAMI_DASHBOARD_URL. */
+  umamiDashboardUrl?: string;
 }
 
+const httpUrl = (x: string | undefined) => (x && /^https?:\/\//i.test(x.trim()) ? x.trim() : undefined);
+
+const MIN_ADMIN_TOKEN = 16;
+/** Pause before answering a wrong admin password, so guessing is slow without locking anyone out. */
+const WRONG_PASSWORD_DELAY_MS = 500;
 
 /** True when this address has used up `max` requests in the last `windowMs`; otherwise records one. */
 function limited(hits: Map<string, number[]>, key: string, max: number, windowMs = 60_000) {
@@ -34,7 +42,10 @@ function limited(hits: Map<string, number[]>, key: string, max: number, windowMs
 export async function startServer(opts: ServerOptions) {
   const { store } = opts;
   const delayScale = opts.delayScale ?? 1;
-  const adminToken = opts.adminToken ?? process.env.ADMIN_TOKEN ?? "";
+  const configuredToken = opts.adminToken ?? process.env.ADMIN_TOKEN ?? "";
+  const adminToken = configuredToken.length >= MIN_ADMIN_TOKEN ? configuredToken : "";
+  if (configuredToken && !adminToken)
+    console.error(`ADMIN_TOKEN is shorter than ${MIN_ADMIN_TOKEN} characters, so /admin stays off. Try: openssl rand -hex 32`);
   const events = new EventLog(store, adminToken);
   const tables = new Map<string, Table>();
   const timers = new Map<string, NodeJS.Timeout>();
@@ -69,6 +80,42 @@ export async function startServer(opts: ServerOptions) {
     });
   });
 
+  // ---------- admin ----------
+
+  // Without a token the page doesn't exist at all: /admin and anything below it is a plain 404.
+  if (adminToken) {
+    const failedAuth = new Map<string, number[]>();
+    app.get("/admin", async (req, res) => {
+      res.set("Cache-Control", "no-store");
+      const ip = req.ip ?? "?";
+      const auth = req.headers.authorization;
+      if (!auth || !basicAuthOk(auth, adminToken)) {
+        res.set("WWW-Authenticate", 'Basic realm="Marriage admin", charset="UTF-8"');
+        if (auth) await new Promise((r) => setTimeout(r, WRONG_PASSWORD_DELAY_MS * delayScale));
+        // Only a wrong password counts (a first visit has no header yet), and only wrong guesses are
+        // refused once an address has made too many: the right token always gets in.
+        if (auth && limited(failedAuth, ip, 10, 10 * 60_000)) return res.status(429).type("text").send("Too many attempts. Try again later.");
+        return res.status(401).type("text").send("Authentication required.");
+      }
+      failedAuth.delete(ip);
+      try {
+        const live: LiveTable[] = [...tables.values()].map((t) => ({
+          code: t.s.code,
+          status: t.s.status,
+          round: t.s.round,
+          rounds: t.s.settings.rounds,
+          players: t.s.seats.filter((x) => !x.left).map((x) => ({ name: x.name, bot: x.isBot, away: !x.isBot && !t.connected.has(x.id) })),
+        }));
+        const [stats, recent] = await Promise.all([store.stats(), store.recentEvents(100)]);
+        res.type("html").send(renderAdmin({ live, stats, events: recent, umamiUrl: httpUrl(opts.umamiDashboardUrl ?? process.env.UMAMI_DASHBOARD_URL) }));
+      } catch (e) {
+        console.error("admin page failed", (e as Error)?.message ?? e);
+        res.status(500).type("text").send("Couldn't load stats.");
+      }
+    });
+  }
+
+  app.use("/admin", (_req, res) => res.status(404).type("text").send("Not found"));
   app.use("/api", (_req, res) => res.status(404).json({ ok: false, error: "Not found" }));
 
   // Serve the built client (production). In development Vite serves it.

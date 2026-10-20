@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { io as connect, Socket } from "socket.io-client";
 import pg from "pg";
 import { MemoryStore, PgStore, Store } from "../src/server/db";
@@ -17,7 +20,7 @@ afterEach(async () => {
 
 async function boot(extra: Partial<ServerOptions> = {}) {
   const store = new MemoryStore();
-  const srv = await startServer({ port: 0, store, delayScale: 0, clientDir: null, ...extra });
+  const srv = await startServer({ port: 0, store, delayScale: 0, clientDir: null, adminToken: "", umamiDashboardUrl: "", ...extra });
   servers.push(srv);
   return { srv, store, base: `http://localhost:${srv.port}` };
 }
@@ -28,6 +31,8 @@ function call<T = any>(port: number, ev: string, payload: unknown): Promise<Ack<
   return new Promise((r) => s.emit(ev, payload, r));
 }
 
+const TOKEN = "a-long-admin-token-for-tests";
+const basic = (pw: string) => ({ authorization: `Basic ${Buffer.from(`anyone:${pw}`).toString("base64")}` });
 const types = async (store: MemoryStore) => (await store.recentEvents(50)).map((e) => e.type).reverse();
 
 describe("event log", () => {
@@ -181,6 +186,68 @@ describe("match stats", () => {
     t.newMatch(host);
     t.start(host);
     expect(seen.map((e) => e.type)).toEqual(["bot.added", "match.started", "match.ended", "match.started"]);
+  });
+});
+
+describe("admin page", () => {
+  it("does not exist without a token, not even for the client app", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "mg-client-"));
+    writeFileSync(path.join(dir, "index.html"), "<!doctype html><html><head></head><body>app</body></html>");
+    const { base, store } = await boot({ adminToken: "", clientDir: dir });
+    for (const p of ["/admin", "/admin/", "/admin/x"]) {
+      const r = await fetch(`${base}${p}`, { headers: basic("anything") });
+      expect(r.status).toBe(404);
+      expect(await r.text()).not.toContain("app");
+    }
+    expect(await store.recentEvents(10)).toEqual([]);
+  });
+
+  it("stays off when the token is too short to be safe", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { base } = await boot({ adminToken: "short" });
+      expect((await fetch(`${base}/admin`, { headers: basic("short") })).status).toBe(404);
+      expect(err).toHaveBeenCalledWith(expect.stringContaining("shorter than 16"));
+    } finally {
+      err.mockRestore();
+    }
+  });
+
+  it("makes a wrong password wait, but not the right one", async () => {
+    const { base } = await boot({ adminToken: TOKEN, delayScale: 1 });
+    let t = Date.now();
+    expect((await fetch(`${base}/admin`, { headers: basic("nope") })).status).toBe(401);
+    expect(Date.now() - t).toBeGreaterThanOrEqual(450);
+    t = Date.now();
+    expect((await fetch(`${base}/admin`, { headers: basic(TOKEN) })).status).toBe(200);
+    expect(Date.now() - t).toBeLessThan(400);
+  });
+
+  it("needs the right token when one is set", async () => {
+    const { base, srv } = await boot({ adminToken: TOKEN });
+    const none = await fetch(`${base}/admin`);
+    expect(none.status).toBe(401);
+    expect(none.headers.get("www-authenticate")).toMatch(/^Basic/);
+    expect((await fetch(`${base}/admin`, { headers: basic("wrong") })).status).toBe(401);
+
+    await call(srv.port, "create", { name: "<img src=x o=1>" });
+    const ok = await fetch(`${base}/admin`, { headers: basic(TOKEN) });
+    expect(ok.status).toBe(200);
+    expect(ok.headers.get("cache-control")).toBe("no-store");
+    const html = await ok.text();
+    expect(html).toContain("Live now");
+    expect(html).toContain("&lt;img src=x o=1&gt;");
+    expect(html).not.toContain("<img src=x");
+  });
+
+  it("refuses wrong guesses after too many, but always lets the right token in", async () => {
+    const { base } = await boot({ adminToken: TOKEN });
+    for (let i = 0; i < 20; i++) await fetch(`${base}/admin`); // no header: never counts
+    for (let i = 0; i < 10; i++) expect((await fetch(`${base}/admin`, { headers: basic("nope") })).status).toBe(401);
+    expect((await fetch(`${base}/admin`, { headers: basic("nope") })).status).toBe(429);
+    expect((await fetch(`${base}/admin`, { headers: basic(TOKEN) })).status).toBe(200);
+    // Logging in cleared the count.
+    expect((await fetch(`${base}/admin`, { headers: basic("nope") })).status).toBe(401);
   });
 });
 

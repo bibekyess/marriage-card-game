@@ -41,7 +41,7 @@ afterEach(async () => {
 });
 
 async function server(store: Store = new MemoryStore()) {
-  const s = await startServer({ port: 0, store, delayScale: 0, clientDir: null });
+  const s = await startServer({ port: 0, store, delayScale: 0, clientDir: null, adminToken: "", umamiDashboardUrl: "" });
   servers.push(s);
   return s;
 }
