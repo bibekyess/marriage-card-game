@@ -66,6 +66,20 @@ describe("event log", () => {
     expect((await store.stats()).all.tables).toBe(1);
   });
 
+  it("marks spectators and counts only real bots", async () => {
+    const { srv, store } = await boot();
+    const made = await call(srv.port, "create", { name: "Ram", bots: 1 });
+    const s = connect(`http://localhost:${srv.port}`, { transports: ["websocket"], forceNew: true });
+    sockets.push(s);
+    const ack = (ev: string, p?: unknown) => new Promise<Ack>((r) => s.emit(ev, p, r));
+    await ack("join", { code: made.data.code, name: "Sita" });
+    await ack("leave");
+    const ev = await store.recentEvents(50);
+    expect(ev.find((e) => e.type === "match.started")?.data).toMatchObject({ players: ["Ram"], bots: 1 });
+    expect(ev.find((e) => e.type === "player.joined")).toMatchObject({ name: "Sita", data: { watching: true } });
+    expect(ev.find((e) => e.type === "player.left")).toMatchObject({ name: "Sita", data: { watching: true } });
+  });
+
   it("logs bots added in the lobby and a match that was started", async () => {
     const { srv, store } = await boot();
     const made = await call(srv.port, "create", { name: "Ram" });

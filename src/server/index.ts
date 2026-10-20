@@ -343,6 +343,8 @@ export async function startServer(opts: ServerOptions) {
     t.onEvent = (type, f) => events.track(type, { code: t.s.code, ...f });
   }
   const nameOf = (t: Table, id: string) => t.s.seats.find((x) => x.id === id)?.name ?? t.s.spectators.find((x) => x.id === id)?.name;
+  // Spectators join and leave too; mark them so they aren't mistaken for seated players.
+  const watching = (t: Table, id: string) => (t.s.spectators.some((x) => x.id === id) ? { watching: true } : undefined);
 
   function removeTable(code: string) {
     clearTimeout(timers.get(code));
@@ -526,7 +528,7 @@ export async function startServer(opts: ServerOptions) {
       }
       if (!name || !name.trim()) return bad("Enter your name first.");
       const { id, token: fresh } = t.join(name);
-      events.track("player.joined", { code, name: nameOf(t, id), ip });
+      events.track("player.joined", { code, name: nameOf(t, id), ip, data: watching(t, id) });
       attach(socket, t, id);
       reply({ ok: true, data: { code, playerId: id, token: fresh } });
       changed(t);
@@ -550,8 +552,9 @@ export async function startServer(opts: ServerOptions) {
       const t = tables.get(socket.data.code);
       const id = socket.data.playerId as string | undefined;
       const name = t && id ? nameOf(t, id) : undefined;
+      const data = t && id ? watching(t, id) : undefined;
       const { removed } = t && id ? t.leave(id) : { removed: false };
-      if (removed && t) events.track("player.left", { code: t.s.code, name, ip });
+      if (removed && t) events.track("player.left", { code: t.s.code, name, ip, data });
       reply({ ok: true, data: { removed } });
       leaveRoom(socket);
       if (removed && t) changed(t);

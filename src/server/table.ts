@@ -377,8 +377,7 @@ export class Table {
     this.s.round += 1;
     if (this.s.round === 1) {
       this.s.matchStartedAt = Date.now();
-      const humans = this.humanNames();
-      this.note("match.started", undefined, { players: humans, bots: n - humans.length });
+      this.note("match.started", undefined, { players: this.humanNames(), bots: this.s.seats.filter((x) => x.isBot).length });
     }
     // Round 1: the last seat deals, so the first seat plays first. Then the deal moves round the table.
     // If the previous dealer has left, the seat that moved into their place deals.
