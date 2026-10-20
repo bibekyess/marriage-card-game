@@ -170,6 +170,32 @@ describe("socket server", () => {
     expect(await status(made.data.code.toLowerCase(), made.data.token)).toMatchObject({ exists: true });
   });
 
+  it("rate-limits 'Your tables' per real address only when TRUST_PROXY is set", async () => {
+    const hit = (port: number, from: string) =>
+      fetch(`http://localhost:${port}/api/tables/ZZZZ`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Forwarded-For": from },
+        body: "{}",
+      }).then((r) => r.status);
+    const burst = async (port: number, from: string) => {
+      for (let i = 0; i < 60; i++) expect(await hit(port, from)).toBe(200);
+      expect(await hit(port, from)).toBe(429);
+    };
+    // Without it the header is ignored, so a new forwarded address doesn't reset the limit.
+    const plain = await server();
+    await burst(plain.port, "1.1.1.1");
+    expect(await hit(plain.port, "2.2.2.2")).toBe(429);
+    // With it each forwarded address gets its own limit.
+    process.env.TRUST_PROXY = "1";
+    try {
+      const proxied = await server();
+      await burst(proxied.port, "1.1.1.1");
+      expect(await hit(proxied.port, "2.2.2.2")).toBe(200);
+    } finally {
+      delete process.env.TRUST_PROXY;
+    }
+  });
+
   it("tells people when a code doesn't exist", async () => {
     const srv = await server();
     const c = client(srv.port);

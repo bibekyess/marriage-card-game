@@ -28,6 +28,10 @@ export async function startServer(opts: ServerOptions) {
   const io = new Server(http, { pingInterval: 10_000, pingTimeout: 8_000 });
 
   app.disable("x-powered-by");
+  // Behind a reverse proxy set TRUST_PROXY=1 so rate limits use the client's real address.
+  const trust = !!process.env.TRUST_PROXY && process.env.TRUST_PROXY !== "0" && process.env.TRUST_PROXY !== "false";
+  // One trusted hop: req.ip becomes the last X-Forwarded-For entry, same as the socket code below.
+  if (trust) app.set("trust proxy", 1);
   app.get("/api/health", (_req, res) => res.json({ ok: true, tables: tables.size }));
   // Status of a table you hold a seat at ("Your tables" on the home screen). Requires your seat
   // token, so table codes can't be scanned for names; rate-limited per address.
@@ -297,10 +301,8 @@ export async function startServer(opts: ServerOptions) {
   type Handler = (t: Table, playerId: string, p: Record<string, any>) => unknown;
 
   io.on("connection", (socket) => {
-    // Behind a reverse proxy set TRUST_PROXY=1 so the client's real address is used.
     const fwd = socket.handshake.headers["x-forwarded-for"];
     // Use the hop our own proxy appended (the last one); earlier entries can be forged by the client.
-    const trust = !!process.env.TRUST_PROXY && process.env.TRUST_PROXY !== "0" && process.env.TRUST_PROXY !== "false";
     const ip = (trust && typeof fwd === "string" && fwd.split(",").at(-1)!.trim()) || socket.handshake.address || "?";
     socket.data.lastCreate = 0;
     socket.data.lastJoin = 0;
