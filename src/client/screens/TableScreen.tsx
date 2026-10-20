@@ -72,6 +72,10 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   // Royal & Kite use a warm marigold turn colour; Classic & Glow keep gold.
   const festive = theme === "royal" || theme === "kite";
   const turnGrad = festive ? "from-[#ffcf4a] to-[#ff8a1f]" : "from-[#ffd77a] to-[#e9a224]";
+  // Over decorations, header chips need an opaque base (and no backdrop blur over moving bokeh).
+  const chipBg = theme === "classic" ? "bg-black/45 backdrop-blur-sm" : "bg-black/75";
+  // Kite festival: amber, gold-bordered tool buttons.
+  const toolBtn = theme === "kite" ? "bg-[#ffb347]/20 text-[#ffd36e] ring-1 ring-[#ffb347]/60 hover:bg-[#ffb347]/30" : "";
   const landscape = vp.w > vp.h;
   const h = useMemo(() => computeHints(v), [v]);
   const me = v.seats[h.myIndex];
@@ -186,9 +190,13 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
           ? cn("bg-gradient-to-b font-extrabold text-[#2a1d00] transition-colors", turnGrad)
           : h.myTurn
             ? festive
-              ? "bg-[#ff9f2e]/20 text-[#ffd36e] ring-1 ring-[#ffb347]/60 transition-colors"
-              : "bg-gold/15 text-gold ring-1 ring-gold/40 transition-colors"
-            : "bg-black/45 text-white/80 backdrop-blur-sm",
+              ? "bg-[#2a0f06]/90 text-[#ffd36e] ring-1 ring-[#ffb347]/70 transition-colors"
+              : theme === "glow"
+                ? "bg-[#0b1a12]/90 text-gold ring-1 ring-gold/50 transition-colors"
+                : "bg-gold/15 text-gold ring-1 ring-gold/40 transition-colors"
+            : theme === "classic"
+              ? "bg-black/45 text-white/80 backdrop-blur-sm"
+              : "bg-black/75 text-white/85",
       )}
       data-testid="hint"
     >
@@ -218,16 +226,20 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
       <TableDecor theme={theme} />
       {/* Top bar */}
       <header className="relative z-10 flex h-12 shrink-0 items-center gap-2 px-2 sm:px-4">
-        <Button size="icon" variant="ghost" className="bg-black/45 backdrop-blur-sm hover:bg-black/60" onClick={() => setMenu(true)} aria-label="Menu">
+        <Button size="icon" variant="ghost" className={cn(chipBg, "hover:bg-black/80")} onClick={() => setMenu(true)} aria-label="Menu">
           <Menu />
         </Button>
         <button
           onClick={() => setScores(true)}
           aria-label="Scoreboard"
-          className="flex shrink-0 items-center gap-2 rounded-full border border-gold/40 bg-black/55 px-3 py-1.5 text-xs font-bold backdrop-blur-sm transition-colors hover:bg-black/70 sm:text-sm"
+          className={cn(
+            "flex shrink-0 items-center gap-2 rounded-full border border-gold/40 px-3 py-1.5 text-xs font-bold transition-colors hover:bg-black/80 sm:text-sm",
+            theme === "classic" ? "bg-black/55 backdrop-blur-sm" : "bg-black/75",
+          )}
           data-testid="score-pill"
         >
-          {theme === "royal" ? <span className="h-2.5 w-2 rounded-full bg-[#d7192a] ring-1 ring-[#ffd36e]" aria-hidden /> : <BarChart3 className="h-4 w-4 text-gold" />}
+          <BarChart3 className="h-4 w-4 text-gold" />
+          {theme === "royal" && <span className="-ml-1 h-2 w-1.5 rounded-full bg-[#d7192a] ring-1 ring-[#ffd36e]" aria-hidden />}
           <span className={cn(seated && "hidden min-[400px]:inline")}>{roundLabel(v)}</span>
           {seated && (
             <>
@@ -247,7 +259,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
             {secondsLeft}s
           </span>
         )}
-        <span className="shrink-0 rounded-full bg-black/55 px-2.5 py-1 text-xs font-bold tracking-[0.2em] text-white/70 backdrop-blur-sm">{v.code}</span>
+        <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-xs font-bold tracking-[0.2em] text-white/75", chipBg)}>{v.code}</span>
       </header>
 
       {/* Felt with opponents on the rim */}
@@ -317,7 +329,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
         <div className="safe-pb relative z-20 shrink-0 px-2 pb-1 sm:px-8">
           <div className="mx-auto flex max-w-[1180px] flex-wrap items-center gap-2 pb-1.5">
             <div className={cn("flex items-center gap-1.5 rounded-full py-1 pl-1 pr-2.5 text-xs font-bold", h.myTurn ? "bg-gradient-to-b from-[#f7c45a] to-[#eba52a] text-[#2a1d00]" : "bg-black/40")}>
-              <Avatar name={me?.name ?? "You"} index={me?.avatar ?? 0} size={22} />
+              <Avatar name={me?.name ?? "You"} index={me?.avatar ?? 0} size={22} tika={festive} />
               {me?.name}
               {v.dealer === h.myIndex && <span className="rounded-full bg-white px-1 text-[9px] text-[#0b2a1f]">D</span>}
             </div>
@@ -345,7 +357,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
               <Button
                 size="icon"
                 variant="secondary"
-                className="h-9 w-9"
+                className={cn("h-9 w-9", toolBtn)}
                 onClick={() => {
                   const next = sortMode === "suit" ? "rank" : "suit";
                   setSortMode(next);
@@ -356,7 +368,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
               >
                 <ArrowDownUp />
               </Button>
-              <Button size="icon" variant="secondary" className="h-9 w-9" onClick={() => arrange(groupedOrder({ ...v, hand: order }, h))} aria-label="Group sets" title="Group sets">
+              <Button size="icon" variant="secondary" className={cn("h-9 w-9", toolBtn)} onClick={() => arrange(groupedOrder({ ...v, hand: order }, h))} aria-label="Group sets" title="Group sets">
                 <Layers />
               </Button>
               {primary}

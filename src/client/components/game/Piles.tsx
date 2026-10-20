@@ -55,18 +55,19 @@ export function Piles({ cw, stockCount, discardTop, discardUnder, maal, maalHidd
 
       <div className="flex flex-col items-center" aria-label={maal ? "Maal card" : "Maal card, hidden until you show"}>
         <div className={cn("relative rounded-lg", maal && "drop-shadow-[0_0_14px_rgba(245,184,61,.55)]", maal && theme !== "classic" && "ring-2 ring-gold/80")}>
-          {maal && (
-            <span className="absolute -left-2.5 -top-3 z-10">
-              <MaalAccent theme={theme} size={Math.round(cw * 0.42)} />
-            </span>
-          )}
+
           {maal ? (
             <PlayingCard id={maal} width={cw * 0.86} maal={maal} />
           ) : (
             <PlayingCard width={cw * 0.86} className={cn("opacity-90", !maalHidden && "opacity-40")} />
           )}
         </div>
-        <Caption active={!!maal}>{maal ? "Maal" : "Maal ?"}</Caption>
+        <Caption active={!!maal}>
+          <span className="inline-flex items-center gap-1">
+            {maal && theme !== "classic" && <MaalAccent theme={theme} size={13} />}
+            {maal ? "Maal" : "Maal ?"}
+          </span>
+        </Caption>
       </div>
 
       <button

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { memo, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { ThemeId } from "../../lib/themes";
 
 // Festival artwork for the visual themes. Everything here is presentational inline SVG / CSS.
@@ -100,31 +100,21 @@ const MARIGOLD_PALETTES = [
   ["#e96f0a", "#f7a416", "#ffd248", "#bd4f05"],
 ];
 
-/** Layered Sayapatri (marigold) in unit radius, scaled by r. */
-function Marigold({ x, y, r, pal = 0, rot = 0 }: { x: number; y: number; r: number; pal?: number; rot?: number }) {
+/** Layered Sayapatri (marigold) in unit radius; placed with <use>. */
+function MarigoldDef({ pal }: { pal: number }) {
   const p = MARIGOLD_PALETTES[pal % MARIGOLD_PALETTES.length];
   const ring = (n: number, dist: number, pr: number, fill: string, off: number) =>
     Array.from({ length: n }, (_, k) => {
       const a = rad(off + (360 / n) * k);
-      return (
-        <circle
-          key={k}
-          cx={Math.sin(a) * dist}
-          cy={-Math.cos(a) * dist}
-          r={pr}
-          fill={fill}
-          stroke="rgba(90,30,0,.28)"
-          strokeWidth={0.035}
-        />
-      );
+      return <circle key={k} cx={Math.sin(a) * dist} cy={-Math.cos(a) * dist} r={pr} fill={fill} stroke="rgba(90,30,0,.28)" strokeWidth={0.04} />;
     });
   return (
-    <g transform={`translate(${x} ${y}) rotate(${rot}) scale(${r})`}>
-      {ring(10, 0.6, 0.4, p[0], 0)}
-      {ring(8, 0.42, 0.34, p[1], 18)}
-      {ring(6, 0.22, 0.26, p[2], 0)}
+    <>
+      {ring(8, 0.6, 0.46, p[0], 0)}
+      {ring(6, 0.38, 0.38, p[1], 22)}
+      {ring(4, 0.16, 0.3, p[2], 0)}
       <circle r={0.13} fill={p[3]} />
-    </g>
+    </>
   );
 }
 
@@ -145,36 +135,17 @@ function Blade({ deg, len, bw, fill, bend = 1 }: { deg: number; len: number; bw:
   );
 }
 
-/** A tuft of jamara hanging from (x,y); angles are degrees from straight down. */
-function Jamara({
-  x,
-  y,
-  len,
-  from = -26,
-  to = 26,
-  count = 7,
-  seed = 0,
-}: {
-  x: number;
-  y: number;
-  len: number;
-  from?: number;
-  to?: number;
-  count?: number;
-  seed?: number;
-}) {
+/** A tuft of jamara of unit length hanging from the origin; angles are degrees from straight down. */
+function JamaraDef({ from, to, count, seed }: { from: number; to: number; count: number; seed: number }) {
   return (
-    <g transform={`translate(${x} ${y})`}>
+    <>
       {Array.from({ length: count }, (_, k) => {
         const f = count === 1 ? 0.5 : k / (count - 1);
-        const deg = from + (to - from) * f;
-        const l = len * (0.78 + 0.22 * Math.abs(Math.sin((k + seed) * 2.1)));
-        return (
-          <Blade key={k} deg={deg} len={l} bw={len * 0.045} fill={GRASS[(k + seed) % GRASS.length]} bend={k % 2 ? 1 : -1} />
-        );
+        const l = 0.78 + 0.22 * Math.abs(Math.sin((k + seed) * 2.1));
+        return <Blade key={k} deg={from + (to - from) * f} len={l} bw={0.045} fill={GRASS[(k + seed) % GRASS.length]} bend={k % 2 ? 1 : -1} />;
       })}
-      <rect x={-len * 0.1} y={-len * 0.04} width={len * 0.2} height={len * 0.1} rx={len * 0.03} fill="#d9a21b" />
-    </g>
+      <rect x={-0.1} y={-0.04} width={0.2} height={0.1} rx={0.03} fill="#d9a21b" />
+    </>
   );
 }
 
@@ -275,133 +246,166 @@ const KITE_COLORS = ["#ff8a1f", "#ffcb2e", "#e63946", "#14b2a6", "#f472b6"];
 /* Table decor                                                          */
 /* ------------------------------------------------------------------ */
 
-function RoyalDecor({ box, compact }: { box: Box; compact: boolean }) {
-  const { n, sw } = swagLayout(box, compact);
-  const d = sw * 0.27;
-  const r = sw * 0.092;
-  const N = 8;
-  const slots = Array.from({ length: n }, (_, i) =>
-    Array.from({ length: N + 1 }, (_, k) => ({ i, k, p: swag(i * sw, sw, d, k / N) })),
-  );
-  const isTuft = (k: number) => k === 0 || k === N || k === N / 2;
-  return (
-    <svg className="absolute left-0 top-0" width={box.w} height={box.h} viewBox={`0 0 ${box.w} ${box.h}`} aria-hidden="true">
-      <g strokeLinecap="round" fill="none" stroke="#7a4b0e" strokeWidth={Math.max(1, sw * 0.012)}>
-        {Array.from({ length: n }, (_, i) => (
-          <path key={i} d={swagPath(i * sw, sw, d)} />
-        ))}
-      </g>
-      {slots.flat().filter((s) => !isTuft(s.k)).map((s) => (
-        <Marigold key={`${s.i}-${s.k}`} x={s.p.x} y={s.p.y + r * 0.15} r={r} pal={s.i + s.k} rot={(s.i * 53 + s.k * 41) % 360} />
-      ))}
-      {slots.flat().filter((s) => isTuft(s.k) && s.k === N / 2).map((s) => (
-        <g key={`t-${s.i}`}>
-          <Marigold x={s.p.x} y={s.p.y} r={r * 0.9} pal={2} rot={20} />
-          <Jamara x={s.p.x} y={s.p.y + r * 0.6} len={sw * 0.24} count={7} seed={s.i} />
-        </g>
-      ))}
-      {slots.flat().filter((s) => s.k === 0 && s.i > 0).map((s) => (
-        <g key={`j-${s.i}`}>
-          <Marigold x={s.p.x} y={s.p.y} r={r * 0.9} pal={1} rot={0} />
-          <Jamara x={s.p.x} y={s.p.y + r * 0.6} len={sw * 0.28} count={7} seed={s.i + 2} />
-        </g>
-      ))}
-      {/* corner bunches */}
-      <g>
-        <Jamara x={sw * 0.04} y={0} len={sw * 0.62} from={-8} to={52} count={11} seed={1} />
-        <Marigold x={sw * 0.06} y={r * 0.2} r={r * 1.05} pal={0} rot={10} />
-        <Jamara x={box.w - sw * 0.04} y={0} len={sw * 0.62} from={-52} to={8} count={11} seed={4} />
-        <Marigold x={box.w - sw * 0.06} y={r * 0.2} r={r * 1.05} pal={1} rot={-10} />
-      </g>
-    </svg>
-  );
-}
-
-function KiteDecor({ box, compact }: { box: Box; compact: boolean }) {
-  const { n, sw } = swagLayout(box, compact);
-  const flagW = Math.max(sw * 0.115, compact ? 5 : 9);
-  const flagH = flagW * 1.3;
-
-  const row = (offset: number, count: number, droop: number, shift: number, scale: number, key: string, opacity = 1) => {
-    const fw = flagW * scale;
-    const fh = flagH * scale;
-    const perSwag = Math.max(3, Math.round((sw * 1.05) / (fw * 1.35)));
-    return (
-      <g key={key} opacity={opacity}>
-        {Array.from({ length: count }, (_, i) => {
-          const x0 = offset + i * sw;
-          return (
-            <g key={i}>
-              <path d={swagPath(x0, sw, droop)} fill="none" stroke="#fff3cf" strokeOpacity={0.9} strokeWidth={Math.max(1, sw * 0.011)} />
-              {Array.from({ length: perSwag }, (_, j) => {
-                const p = swag(x0, sw, droop, (j + 0.5) / perSwag);
-                const ax = p.x - p.tx * (fw / 2);
-                const ay = p.y - p.ty * (fw / 2);
-                const bx = p.x + p.tx * (fw / 2);
-                const by = p.y + p.ty * (fw / 2);
-                return (
-                  <polygon
-                    key={j}
-                    points={`${ax},${ay} ${bx},${by} ${p.x},${p.y + fh}`}
-                    fill={KITE_COLORS[(i * perSwag + j + shift) % KITE_COLORS.length]}
-                    stroke="rgba(8,30,60,.25)"
-                    strokeWidth={0.7}
-                    strokeLinejoin="round"
-                  />
-                );
-              })}
-            </g>
-          );
-        })}
-      </g>
+const RoyalDecor = memo(function RoyalDecor({ box, compact }: { box: Box; compact: boolean }) {
+  const id = sid(useId());
+  const content = useMemo(() => {
+    const { n, sw } = swagLayout(box, compact);
+    const d = sw * 0.27;
+    const r = sw * 0.092;
+    const N = 8;
+    const use = (ref: string, key: string, x: number, y: number, rot: number, sc: number, flipX = false) => (
+      <use key={key} href={`#${id}${ref}`} transform={`translate(${x} ${y}) rotate(${rot}) scale(${flipX ? -sc : sc} ${sc})`} />
     );
-  };
-
-  const s = clamp(Math.min(box.w, box.h) * 0.07, compact ? 7 : 20, 38);
-  const tail = (cx: number, cy: number, len: number, flip: number, col: string) => {
-    const a = s * 0.28 * flip;
+    const els: ReactNode[] = [];
+    for (let i = 0; i < n; i++) {
+      for (let k = 1; k < N; k++) {
+        if (k === N / 2) continue;
+        const p = swag(i * sw, sw, d, k / N);
+        els.push(use(`m${(i + k) % 2}`, `f${i}-${k}`, p.x, p.y + r * 0.15, (i * 53 + k * 41) % 360, r));
+      }
+      const mid = swag(i * sw, sw, d, 0.5);
+      els.push(use("m1", `tm${i}`, mid.x, mid.y, 20, r * 0.9));
+      els.push(use(`j${i % 2}`, `tj${i}`, mid.x, mid.y + r * 0.6, 0, sw * 0.24));
+      if (i > 0) {
+        els.push(use("m0", `jm${i}`, i * sw, 0, 0, r * 0.9));
+        els.push(use(`j${(i + 1) % 2}`, `jj${i}`, i * sw, r * 0.6, 0, sw * 0.28));
+      }
+    }
+    els.push(use("fan", "cl", sw * 0.04, 0, 0, sw * 0.62));
+    els.push(use("m0", "cml", sw * 0.06, r * 0.2, 10, r * 1.05));
+    els.push(use("fan", "cr", box.w - sw * 0.04, 0, 0, sw * 0.62, true));
+    els.push(use("m1", "cmr", box.w - sw * 0.06, r * 0.2, -10, r * 1.05));
     return (
-      <g>
+      <>
         <path
-          d={`M${cx} ${cy} q${a} ${len / 6} 0 ${len / 3} t0 ${len / 3} t0 ${len / 3}`}
+          d={Array.from({ length: n }, (_, i) => swagPath(i * sw, sw, d)).join("")}
           fill="none"
-          stroke="#fff3cf"
-          strokeOpacity={0.9}
-          strokeWidth={Math.max(0.8, s * 0.04)}
+          stroke="#7a4b0e"
+          strokeWidth={Math.max(1, sw * 0.012)}
           strokeLinecap="round"
         />
-        {[0.28, 0.55, 0.82].map((f, i) => (
-          <g key={i} transform={`translate(${cx + (i % 2 ? -a * 0.15 : a * 0.15)} ${cy + len * f})`}>
-            <polygon points={`0,0 ${-s * 0.2},${-s * 0.11} ${-s * 0.2},${s * 0.11}`} fill={KITE_COLORS[(i * 2 + col.length) % 5]} />
-            <polygon points={`0,0 ${s * 0.2},${-s * 0.11} ${s * 0.2},${s * 0.11}`} fill={KITE_COLORS[(i * 2 + 1 + col.length) % 5]} />
-          </g>
-        ))}
-      </g>
+        {els}
+      </>
     );
-  };
-  const kite = (cx: number, cy: number, k: number, rot: number, c: [string, string, string, string], key: string, flip: number) => (
-    <g key={key} transform={`rotate(${rot} ${cx} ${cy})`}>
-      {tail(cx, cy + 0.92 * k, k * 2.6, flip, c[0])}
-      <KiteMark x={cx} y={cy} s={k} c={c} />
-    </g>
-  );
-
-  const topPad = flagH + sw * 0.2;
-  const ky = topPad + s * 0.9;
+  }, [box.w, box.h, compact, id]);
   return (
     <svg className="absolute left-0 top-0" width={box.w} height={box.h} viewBox={`0 0 ${box.w} ${box.h}`} aria-hidden="true">
-      {row(-sw / 2, n + 1, sw * 0.13, 2, 0.8, "back", 0.85)}
-      {row(0, n, sw * 0.17, 0, 1, "front")}
-      {kite(s * 1.55, ky + s * 0.2, s * 1.05, -12, ["#ff8a1f", "#ffcb2e", "#e63946", "#ffcb2e"], "k1", 1)}
-      {kite(s * 3.6, ky - s * 0.15, s * 0.72, 14, ["#14b2a6", "#ffffff", "#f472b6", "#ffffff"], "k2", -1)}
-      {kite(box.w - s * 1.55, ky + s * 0.35, s * 1.05, 11, ["#e63946", "#ffcb2e", "#14b2a6", "#ff8a1f"], "k3", -1)}
-      {!compact && kite(box.w - s * 3.7, ky - s * 0.2, s * 0.68, -13, ["#ffcb2e", "#ffffff", "#ff8a1f", "#ffffff"], "k4", 1)}
+      <defs>
+        <g id={`${id}m0`}><MarigoldDef pal={0} /></g>
+        <g id={`${id}m1`}><MarigoldDef pal={1} /></g>
+        <g id={`${id}j0`}><JamaraDef from={-26} to={26} count={7} seed={0} /></g>
+        <g id={`${id}j1`}><JamaraDef from={-26} to={26} count={7} seed={3} /></g>
+        <g id={`${id}fan`}><JamaraDef from={-8} to={52} count={11} seed={1} /></g>
+      </defs>
+      {content}
     </svg>
   );
-}
+});
+
+const KITE_SETS: [string, string, string, string][] = [
+  ["#ff8a1f", "#ffcb2e", "#e63946", "#ffcb2e"],
+  ["#14b2a6", "#ffffff", "#f472b6", "#ffffff"],
+  ["#e63946", "#ffcb2e", "#14b2a6", "#ff8a1f"],
+  ["#ffcb2e", "#ffffff", "#ff8a1f", "#ffffff"],
+];
+
+const KiteDecor = memo(function KiteDecor({ box, compact }: { box: Box; compact: boolean }) {
+  const content = useMemo(() => {
+    const portrait = box.h > box.w;
+    const { n, sw } = swagLayout(box, compact);
+    const flagW = Math.max(sw * 0.115, compact ? 5 : 9);
+    const flagH = flagW * 1.3;
+
+    const row = (offset: number, count: number, droop: number, shift: number, scale: number, key: string, opacity = 1) => {
+      const fw = flagW * scale;
+      const fh = flagH * scale;
+      const perSwag = Math.max(3, Math.round((sw * 1.05) / (fw * 1.35)));
+      const lineW = Math.max(1, sw * 0.011);
+      let lines = "";
+      const flags: ReactNode[] = [];
+      for (let i = 0; i < count; i++) {
+        const x0 = offset + i * sw;
+        lines += swagPath(x0, sw, droop);
+        for (let j = 0; j < perSwag; j++) {
+          const p = swag(x0, sw, droop, (j + 0.5) / perSwag);
+          const ax = p.x - p.tx * (fw / 2);
+          const ay = p.y - p.ty * (fw / 2);
+          const bx = p.x + p.tx * (fw / 2);
+          const by = p.y + p.ty * (fw / 2);
+          flags.push(
+            <polygon
+              key={`${i}-${j}`}
+              points={`${ax},${ay} ${bx},${by} ${p.x},${p.y + fh}`}
+              fill={KITE_COLORS[(i * perSwag + j + shift) % KITE_COLORS.length]}
+            />,
+          );
+        }
+      }
+      return (
+        <g key={key} opacity={opacity}>
+          <path d={lines} fill="none" stroke="#fff3cf" strokeOpacity={0.9} strokeWidth={lineW} />
+          <g stroke="rgba(8,30,60,.25)" strokeWidth={0.7} strokeLinejoin="round">
+            {flags}
+          </g>
+        </g>
+      );
+    };
+
+    const s = clamp(Math.min(box.w, box.h) * 0.07, compact ? 7 : 20, 38) * (portrait ? 0.85 : 1);
+    const tailK = portrait ? 1.56 : 2.6;
+    const tail = (cx: number, cy: number, len: number, flip: number, ci: number) => {
+      const a = s * 0.28 * flip;
+      const bows = [0.28, 0.55, 0.82].map((f, i) => {
+        const x = cx + (i % 2 ? -a * 0.15 : a * 0.15);
+        return { x, y: cy + len * f };
+      });
+      const wing = (sign: number) =>
+        bows.map((q) => `M${q.x} ${q.y}l${sign * s * 0.2} ${-s * 0.11}v${s * 0.22}z`).join("");
+      return (
+        <g>
+          <path
+            d={`M${cx} ${cy} q${a} ${len / 6} 0 ${len / 3} t0 ${len / 3} t0 ${len / 3}`}
+            fill="none"
+            stroke="#fff3cf"
+            strokeOpacity={0.9}
+            strokeWidth={Math.max(0.8, s * 0.04)}
+            strokeLinecap="round"
+          />
+          <path d={wing(-1)} fill={KITE_COLORS[ci % 5]} />
+          <path d={wing(1)} fill={KITE_COLORS[(ci + 1) % 5]} />
+        </g>
+      );
+    };
+    const kite = (cx: number, cy: number, k: number, rot: number, set: number, flip: number) => (
+      <g key={`k${set}`} transform={`rotate(${rot} ${cx} ${cy})`}>
+        {tail(cx, cy + 0.92 * k, k * tailK, flip, set * 2)}
+        <KiteMark x={cx} y={cy} s={k} c={KITE_SETS[set]} />
+      </g>
+    );
+
+    const topPad = flagH + sw * 0.2;
+    const ky = portrait ? topPad + s * 0.85 : topPad + s * 0.9;
+    return (
+      <>
+        {row(-sw / 2, n + 1, sw * 0.13, 2, 0.8, "back", 0.85)}
+        {row(0, n, sw * 0.17, 0, 1, "front")}
+        {kite(s * 1.55, ky + s * 0.2, s * 1.05, -12, 0, 1)}
+        {kite(s * 3.6, ky - s * 0.15, s * 0.72, 14, 1, -1)}
+        {kite(box.w - s * 1.55, ky + s * 0.35, s * 1.05, 11, 2, -1)}
+        {!compact && kite(box.w - s * 3.7, ky - s * 0.2, s * 0.68, -13, 3, 1)}
+      </>
+    );
+  }, [box.w, box.h, compact]);
+  return (
+    <svg className="absolute left-0 top-0" width={box.w} height={box.h} viewBox={`0 0 ${box.w} ${box.h}`} aria-hidden="true">
+      {content}
+    </svg>
+  );
+});
 
 // Deterministic pseudo-random bokeh layout (edge-biased) so renders are stable.
-const BOKEH = Array.from({ length: 18 }, (_, i) => {
+// Kept out of the header band (top 14%) and sparse over the hand area (bottom 30%).
+const BOKEH = Array.from({ length: 14 }, (_, i) => {
   const f = (n: number) => {
     const v = Math.sin(i * 12.9898 + n * 78.233) * 43758.5453;
     return v - Math.floor(v);
@@ -409,7 +413,8 @@ const BOKEH = Array.from({ length: 18 }, (_, i) => {
   const edge = i % 3 !== 2;
   const left = i % 2 === 0;
   const x = edge ? (left ? f(1) * 15 : 100 - f(1) * 15) : 20 + f(1) * 60;
-  const y = edge ? f(2) * 100 : i % 2 ? f(2) * 12 : 88 + f(2) * 12;
+  let y = edge ? 15 + f(2) * 80 : 15 + f(2) * 55;
+  if (y > 70 && i % 3 !== 0) y -= 35; // thin out the bottom 30%
   const size = 3 + Math.pow(f(3), 1.5) * 11;
   return {
     x,
@@ -423,33 +428,47 @@ const BOKEH = Array.from({ length: 18 }, (_, i) => {
   };
 });
 
+const GLOW_CSS_ID = "mk-glow-css";
 const GLOW_CSS = `
 @keyframes mk-bokeh-drift {
   0%, 100% { transform: translate(0,0) scale(1); opacity: var(--o); }
   50% { transform: translate(var(--dx), var(--dy)) scale(1.1); opacity: calc(var(--o) * .5); }
 }
-.mk-bokeh { animation: mk-bokeh-drift var(--d) ease-in-out var(--dl) infinite; will-change: transform, opacity; }
+.mk-bokeh { animation: mk-bokeh-drift var(--d) ease-in-out var(--dl) infinite; }
 @media (prefers-reduced-motion: reduce) { .mk-bokeh { animation: none; } }
 `;
 
-function GlowDecor({ compact }: { compact: boolean }) {
+/** Inject the bokeh keyframes once per document, however many GlowDecor instances render. */
+function ensureGlowCss() {
+  if (typeof document === "undefined" || document.getElementById(GLOW_CSS_ID)) return;
+  const el = document.createElement("style");
+  el.id = GLOW_CSS_ID;
+  el.textContent = GLOW_CSS;
+  document.head.appendChild(el);
+}
+
+const BOKEH_BG = "radial-gradient(circle, rgba(255,214,120,.55) 0%, rgba(255,200,90,.22) 45%, transparent 70%)";
+
+const GlowDecor = memo(function GlowDecor({ compact }: { compact: boolean }) {
   const gid = sid(useId());
+  useEffect(() => {
+    if (!compact) ensureGlowCss();
+  }, [compact]);
   const corner = compact ? "clamp(16px, 30cqmin, 40px)" : "clamp(64px, 26cqmin, 130px)";
   return (
     <>
-      <style>{GLOW_CSS}</style>
       {BOKEH.map((b, i) => (
         <div
           key={i}
-          className="mk-bokeh absolute rounded-full"
+          className={compact ? "absolute rounded-full" : "mk-bokeh absolute rounded-full"}
           style={
             {
               left: `calc(${b.x}% - ${b.size / 2}cqmin)`,
               top: `calc(${b.y}% - ${b.size / 2}cqmin)`,
               width: `${b.size}cqmin`,
               height: `${b.size}cqmin`,
-              background:
-                "radial-gradient(circle, rgba(255,226,150,.65) 0%, rgba(255,208,110,.45) 48%, rgba(255,196,90,.7) 64%, rgba(255,190,80,0) 72%)",
+              background: BOKEH_BG,
+              opacity: b.o,
               "--o": b.o,
               "--d": `${b.dur}s`,
               "--dl": `${b.delay}s`,
@@ -487,9 +506,9 @@ function GlowDecor({ compact }: { compact: boolean }) {
       </svg>
     </>
   );
-}
+});
 
-export function TableDecor({ theme, compact = false }: { theme: ThemeId; compact?: boolean }) {
+export const TableDecor = memo(function TableDecor({ theme, compact = false }: { theme: ThemeId; compact?: boolean }) {
   if (theme === "classic") return null;
   return (
     <Frame>
@@ -504,7 +523,7 @@ export function TableDecor({ theme, compact = false }: { theme: ThemeId; compact
       }
     </Frame>
   );
-}
+});
 
 /* ------------------------------------------------------------------ */
 /* Felt pattern                                                         */

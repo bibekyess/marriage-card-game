@@ -8,16 +8,26 @@ export function ThemePicker({ compact }: { compact?: boolean }) {
   const theme = useTheme();
   return (
     <div className={cn("grid gap-2", compact ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4")} role="radiogroup" aria-label="Table look">
-      {THEMES.map((t) => {
+      {THEMES.map((t, i) => {
         const on = t.id === theme;
         return (
           <button
             key={t.id}
             role="radio"
             aria-checked={on}
+            tabIndex={on ? 0 : -1}
             onClick={() => setTheme(t.id)}
+            onKeyDown={(e) => {
+              // Arrow keys move between looks, as in a radio group.
+              const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+              if (!step) return;
+              e.preventDefault();
+              const next = THEMES[(i + step + THEMES.length) % THEMES.length];
+              setTheme(next.id);
+              (e.currentTarget.parentElement?.children[THEMES.indexOf(next)] as HTMLElement | undefined)?.focus();
+            }}
             className={cn(
-              "group relative overflow-hidden rounded-xl border text-left transition-all",
+              "group relative overflow-hidden rounded-xl border text-left outline-none transition-all focus-visible:ring-2 focus-visible:ring-gold",
               on ? "border-gold ring-2 ring-gold/50" : "border-white/10 hover:border-white/25",
             )}
           >

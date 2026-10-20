@@ -22,7 +22,8 @@ const config: Config = {
         accent: { DEFAULT: "hsl(var(--accent))", foreground: "hsl(var(--accent-foreground))" },
         popover: { DEFAULT: "hsl(var(--popover))", foreground: "hsl(var(--popover-foreground))" },
         card: { DEFAULT: "hsl(var(--card))", foreground: "hsl(var(--card-foreground))" },
-        felt: { DEFAULT: "#0e5a3f", dark: "#08382a", light: "#17795a" },
+        // Themed: see --felt / --felt-light in index.css.
+        felt: { DEFAULT: "rgb(var(--felt) / <alpha-value>)", dark: "#08382a", light: "rgb(var(--felt-light) / <alpha-value>)" },
         gold: { DEFAULT: "#f5b83d", light: "#f7c45a", dark: "#eba52a" },
       },
       boxShadow: {

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SeatView } from "../../../shared/protocol";
@@ -26,6 +27,19 @@ export function Seat({ seat, active, dealer, progress, maal, size = 46, showSets
   const theme = useTheme();
   const fan = Math.min(5, Math.max(1, Math.round(seat.cardCount / 5)));
   const setCw = Math.max(16, Math.round(size * 0.4));
+  // Built once per size, so the memoised card backs don't re-render on every table update.
+  const fanCards = useMemo(
+    () =>
+      Array.from({ length: fan }, (_, i) => (
+        <PlayingCard
+          key={i}
+          width={Math.round(size * 0.34)}
+          className="!border !shadow-sm"
+          style={{ [fanLeft ? "marginRight" : "marginLeft"]: i ? -Math.round(size * 0.26) : 0, transform: `rotate(${(i - (fan - 1) / 2) * 9}deg)`, transformOrigin: "bottom center" }}
+        />
+      )),
+    [fan, size, fanLeft],
+  );
   return (
     <div className={cn("relative flex items-center", inline ? "flex-row gap-6" : "flex-col")} data-testid="seat" data-active={active || undefined}>
       <div className="relative">
@@ -47,14 +61,7 @@ export function Seat({ seat, active, dealer, progress, maal, size = 46, showSets
         {/* Face-down fan with the card count (hidden between rounds) */}
         {seat.cardCount > 0 && (
         <div className={cn("absolute bottom-0 flex items-end", fanLeft ? "-left-5 flex-row-reverse" : "-right-5")} aria-label={`${seat.cardCount} cards`}>
-          {Array.from({ length: fan }, (_, i) => (
-            <PlayingCard
-              key={i}
-              width={Math.round(size * 0.34)}
-              className="!border !shadow-sm"
-              style={{ [fanLeft ? "marginRight" : "marginLeft"]: i ? -Math.round(size * 0.26) : 0, transform: `rotate(${(i - (fan - 1) / 2) * 9}deg)`, transformOrigin: "bottom center" }}
-            />
-          ))}
+          {fanCards}
           <span className={cn("absolute -bottom-1 rounded-full", fanLeft ? "-left-2" : "-right-2", " bg-[#0b1713] px-1.5 text-[10px] font-bold tabular-nums leading-4 text-white ring-1 ring-white/15")}>{seat.cardCount}</span>
         </div>
         )}

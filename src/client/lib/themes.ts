@@ -24,8 +24,11 @@ let current: ThemeId = (() => {
   return THEMES.some((x) => x.id === t) ? (t as ThemeId) : "classic";
 })();
 
+const BROWSER_BAR: Record<ThemeId, string> = { classic: "#07120f", royal: "#1a0508", kite: "#061a2b", glow: "#050d0a" };
+
 function apply() {
   document.documentElement.dataset.theme = current;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", BROWSER_BAR[current]);
 }
 apply();
 
