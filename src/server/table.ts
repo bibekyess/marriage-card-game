@@ -15,7 +15,7 @@ import {
   BHOOT_NO_THROW,
 } from "../shared/melds";
 import { maalPoints, scoreRound } from "../shared/scoring";
-import { LogEntry, RoundReveal, RoundRow, Route, TableStatus, TableView, ThrownCard } from "../shared/protocol";
+import { LogEntry, Play, RoundReveal, RoundRow, Route, TableStatus, TableView, ThrownCard } from "../shared/protocol";
 import { dubleesAllowed, LEGACY_SETTINGS, MAX_PLAYERS, MIN_PLAYERS, sanitizeSettings, Settings, timerLabel } from "../shared/settings";
 import type { EventType } from "./events";
 
@@ -79,6 +79,8 @@ export interface TableState {
   rounds: RoundRow[];
   reveal: RoundReveal | null;
   log: LogEntry[];
+  /** Public moves this match for the activity log, oldest first. */
+  plays?: Play[];
   /** Names of everyone who has sat here this match (for scoreboards after people leave). */
   names?: Record<string, string>;
   /** When the current match's first round was dealt (identifies the match in history). */
@@ -91,6 +93,8 @@ const HOST_HANDOVER_MS = 3 * 60_000;
 const MAX_SPECTATORS = 10;
 /** After this many stock reshuffles the round is called off (nobody can finish). */
 const MAX_RESHUFFLES = 3;
+/** Moves kept for the activity log (a few rounds' worth at a full table). */
+const MAX_PLAYS = 80;
 
 export const newId = (bytes = 6) => randomBytes(bytes).toString("base64url");
 export const cleanName = (n: unknown) =>
@@ -163,6 +167,9 @@ export class Table {
 
   log(text: string) {
     this.s.log = [...this.s.log, { t: Date.now(), text }].slice(-40);
+  }
+  private play(by: string, p: Omit<Play, "t" | "round" | "by">) {
+    this.s.plays = [...(this.s.plays ?? []), { t: Date.now(), round: this.s.round, by, ...p }].slice(-MAX_PLAYS);
   }
   seat(id: string) {
     return this.s.seats.find((x) => x.id === id);
@@ -377,6 +384,7 @@ export class Table {
     this.s.rounds = [];
     this.s.round = 0;
     this.s.names = {};
+    this.s.plays = [];
     this.s.reveal = null;
     this.s.status = "lobby";
     this.log("A new match is starting.");
@@ -453,11 +461,15 @@ export class Table {
       c = g.discard.pop()!;
       const last = g.discardBy ? g.thrown?.[g.discardBy]?.at(-1) : undefined;
       if (last?.card === c) last.taken = true;
+      this.play(id, { kind: "pick", card: c, from: g.discardBy ?? undefined });
       g.discardBy = null;
       g.picked = c;
       this.log(`${this.nameOf(id)} picked up ${cardLabel(c)}.`);
     } else {
       if (!g.stock.length && (g.reshuffles ?? 0) >= MAX_RESHUFFLES) return this.voidRound();
+      // Record the card they passed on, never the one they drew.
+      const top = g.discard.at(-1);
+      this.play(id, { kind: "stock", card: top, from: top ? g.discardBy ?? undefined : undefined });
       if (!g.stock.length) {
         g.reshuffles = (g.reshuffles ?? 0) + 1;
         const top = g.discard.pop()!;
@@ -483,6 +495,7 @@ export class Table {
     g.discard.push(c);
     g.discardBy = id;
     ((g.thrown ??= {})[id] ??= []).push({ card: c });
+    this.play(id, { kind: "throw", card: c });
     this.advance();
   }
 
@@ -526,6 +539,7 @@ export class Table {
     g.shown[id] = [...tunnels];
     const n = tunnels.length;
     if (n >= 3) g.seen[id] = "pure";
+    this.play(id, { kind: "tunnel", sets: n });
     this.log(`${this.nameOf(id)} showed ${n} tunnel${n > 1 ? "s" : ""}${n >= 3 ? " and saw the maal" : ""}.`);
   }
 
@@ -560,6 +574,7 @@ export class Table {
     g.shown[id] = [...(g.shown[id] ?? []), ...groups!];
     // Shown before drawing: the maal is revealed now. After drawing: only once a card is thrown.
     if (g.phase === "discard") g.maalPending = id;
+    this.play(id, { kind: "show", sets: groups!.length, route });
     const what = route === "dublee" ? "7 dublees" : `${need} pure set${need > 1 ? "s" : ""}`;
     this.log(`${this.nameOf(id)} showed ${what}${g.maalPending === id ? "" : " and saw the maal"}.`);
   }
@@ -592,6 +607,7 @@ export class Table {
     g.hands[winnerId] = g.hands[winnerId].filter((c) => c !== f.discard);
     g.discard.push(f.discard);
     ((g.thrown ??= {})[winnerId] ??= []).push({ card: f.discard });
+    this.play(winnerId, { kind: "win", card: f.discard });
     // Only tunnels shown before the first draw score, and only once the maal has been seen.
     const inputs = this.s.seats.map((seat) => {
       const hand = g.hands[seat.id];
@@ -833,6 +849,7 @@ export class Table {
       rounds: s.rounds,
       reveal: s.reveal,
       log: s.log.slice(-15),
+      plays: s.plays ?? [],
       spectators: s.spectators.map((x) => ({ id: x.id, name: x.name })),
       names,
       matchStartedAt: s.matchStartedAt ?? s.createdAt,

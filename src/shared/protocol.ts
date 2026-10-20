@@ -62,6 +62,27 @@ export interface LogEntry {
   text: string;
 }
 
+/**
+ * One public move, for the activity log. Only what everyone at a real table can see:
+ * a card drawn from the stock is never included.
+ */
+export interface Play {
+  t: number;
+  round: number;
+  /** Player id. */
+  by: string;
+  /**
+   * throw: `card` thrown. pick: took `card` from the discard pile, thrown by `from`.
+   * stock: drew from the stock, leaving `card` (thrown by `from`) on the pile.
+   * show: showed `sets` sets (`route`). tunnel: showed `sets` tunnela. win: finished, throwing `card`.
+   */
+  kind: "throw" | "pick" | "stock" | "show" | "tunnel" | "win";
+  card?: CardId;
+  from?: string;
+  sets?: number;
+  route?: Route;
+}
+
 export interface TableView {
   code: string;
   you: string;
@@ -89,6 +110,8 @@ export interface TableView {
   rounds: RoundRow[];
   reveal: RoundReveal | null;
   log: LogEntry[];
+  /** Recent moves this match, oldest first (older cached views may not have it). */
+  plays?: Play[];
   spectators: { id: string; name: string }[];
   /** Everyone who has sat at this table this match, including people who left. */
   names: Record<string, string>;

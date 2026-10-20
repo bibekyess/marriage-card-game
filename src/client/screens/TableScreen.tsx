@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownUp, ArrowDownToLine, ArrowUp, BarChart3, Eye, Layers, Lightbulb, Maximize, Menu, Minimize, Sparkles, Trophy, WandSparkles, WifiOff } from "lucide-react";
+import { ArrowDownUp, ArrowDownToLine, ArrowUp, BarChart3, Eye, Layers, Lightbulb, Maximize, Menu, Minimize, ScrollText, Sparkles, Trophy, WandSparkles, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -7,6 +7,8 @@ import { Hand, HandGroup } from "@/components/game/Hand";
 import { Piles } from "@/components/game/Piles";
 import { Seat, TurnClock } from "@/components/game/Seat";
 import { ThrownDialog } from "@/components/game/ThrownDialog";
+import { ActivityPanel, ActivitySheet } from "@/components/game/ActivityLog";
+import { newReaction, playKey } from "@/lib/activity";
 import { PlayingCard } from "@/components/game/PlayingCard";
 import { TunnelTag } from "@/components/game/TunnelTag";
 import { Avatar } from "@/components/game/Avatar";
@@ -37,6 +39,25 @@ function useViewport() {
     return () => window.removeEventListener("resize", on);
   }, []);
   return vp;
+}
+
+const ACTIVITY_KEY = "mg.activity";
+/** Whether the desktop activity panel is open (on unless the player closed it). */
+function useActivityPanel() {
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem(ACTIVITY_KEY) !== "closed";
+    } catch {
+      return true;
+    }
+  });
+  const set = (o: boolean) => {
+    setOpen(o);
+    try {
+      localStorage.setItem(ACTIVITY_KEY, o ? "open" : "closed");
+    } catch {}
+  };
+  return [open, set] as const;
 }
 
 function useNow(active: boolean) {
@@ -169,6 +190,29 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   useEffect(iPhoneInstallTip, []);
   const [scores, setScores] = useState(false);
   const [thrownFor, setThrownFor] = useState<string | null>(null);
+  const [panelOpen, setPanelOpen] = useActivityPanel();
+  const [activitySheet, setActivitySheet] = useState(false);
+  // Desktop has room for the log beside the table; smaller screens open it as a sheet.
+  const desktop = landscape && vp.w >= 1100 && vp.h >= 560;
+  const toggleActivity = () => (desktop ? setPanelOpen(!panelOpen) : setActivitySheet(true));
+
+  // A short note when the next player takes (or passes) the card you threw.
+  const [reaction, setReaction] = useState<{ by: string; card: CardId; taken: boolean } | null>(null);
+  const lastPlay = useRef<string | null>(v.plays?.length ? playKey(v.plays[v.plays.length - 1]) : null);
+  const reactionTimer = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(reactionTimer.current), []);
+  useEffect(() => {
+    const plays = v.plays ?? [];
+    if (!plays.length) return;
+    const key = playKey(plays[plays.length - 1]);
+    if (key === lastPlay.current) return;
+    const r = newReaction(v, plays, lastPlay.current);
+    lastPlay.current = key;
+    if (!r) return;
+    setReaction(r);
+    clearTimeout(reactionTimer.current);
+    reactionTimer.current = setTimeout(() => setReaction(null), 2800);
+  }, [v]);
   const [resultOpen, setResultOpen] = useState(true);
   const [turnFlash, setTurnFlash] = useState(false);
   const flashTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -419,6 +463,18 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
           <TurnClock seconds={elapsed} className={cn("px-2.5 py-1 text-xs leading-4", turnPace(elapsed) === "ok" && "bg-black/30 text-gold opacity-100")} />
         )}
         <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-xs font-bold tracking-[0.2em] text-white/75", chipBg)}>{v.code}</span>
+        <Button
+          size="icon"
+          variant="ghost"
+          className={cn(chipBg, "hover:bg-black/80", desktop && panelOpen && "text-gold")}
+          onClick={toggleActivity}
+          aria-label={desktop && panelOpen ? "Hide activity" : "Activity"}
+          aria-pressed={desktop ? panelOpen : undefined}
+          title="Activity"
+          data-testid="activity-btn"
+        >
+          <ScrollText />
+        </Button>
         {canFullscreen() && (
           <Button size="icon" variant="ghost" className={cn(chipBg, "hover:bg-black/80")} onClick={toggleFullscreen} aria-label={full ? "Exit full screen" : "Full screen"}>
             {full ? <Minimize /> : <Maximize />}
@@ -426,8 +482,9 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
         )}
       </header>
 
+      <div className="flex min-h-0 flex-1">
       {/* Felt with opponents on the rim */}
-      <div className={cn("relative flex min-h-0 flex-1 px-3 pb-2 pt-1 sm:px-8", landscape ? "items-center" : "items-start pt-4")}>
+      <div className={cn("relative flex min-h-0 min-w-0 flex-1 px-3 pb-2 pt-1 sm:px-8", landscape ? "items-center" : "items-start pt-4")}>
         <div className="relative mx-auto h-full w-full max-w-[1100px]" style={{ maxHeight: landscape ? Math.max(240, (vp.w - 32) * 0.62) : (vp.w - 24) * 1.2 }}>
           <div
             className="felt absolute inset-x-0 overflow-hidden rounded-[50%/46%]"
@@ -484,7 +541,23 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
               onDraw={(from) => run("draw", { from })}
             />
           </div>
+          {reaction && (
+            <div className="pointer-events-none absolute inset-x-0 z-20 flex justify-center" style={{ top: "54%", transform: `translateY(calc(${Math.round(pileCw * 0.75)}px + 1.4rem))` }}>
+              <span
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold shadow-lift motion-safe:animate-card-in",
+                  reaction.taken ? cn("bg-gradient-to-b text-[#2a1d00]", turnGrad) : "bg-black/75 text-gold ring-1 ring-gold/50",
+                )}
+                role="status"
+                data-testid="reaction-note"
+              >
+                {reaction.by} {reaction.taken ? "took" : "passed"} your {cardLabel(reaction.card)}
+              </span>
+            </div>
+          )}
         </div>
+      </div>
+      {desktop && panelOpen && <ActivityPanel view={v} onClose={() => setPanelOpen(false)} />}
       </div>
 
       {!wide && <div className="relative z-10 flex justify-center px-3 pb-1">{hintPill}</div>}
@@ -651,6 +724,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
       )}
       <ScoreSheet view={v} open={scores} onOpenChange={setScores} />
       <ThrownDialog view={v} focus={thrownFor} onClose={() => setThrownFor(null)} />
+      <ActivitySheet view={v} open={activitySheet && !desktop} onOpenChange={setActivitySheet} />
       <MenuSheet view={v} open={menu} onOpenChange={setMenu} onScores={() => setScores(true)} />
       <RotatePrompt portrait={!landscape} />
     </div>

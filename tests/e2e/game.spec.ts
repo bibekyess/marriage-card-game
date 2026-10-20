@@ -163,3 +163,17 @@ test("see what each player has thrown", async ({ page }) => {
   await expect(dialog).toBeVisible();
   await expect(dialog.getByTestId("thrown-row")).toHaveCount(3);
 });
+
+test("the activity log shows my throw and whether the next player took it", async ({ page }, info) => {
+  await startPractice(page, "3", "2");
+  await expect(page.getByTestId("stock")).toBeEnabled({ timeout: 30_000 });
+  await page.getByTestId("stock").click();
+  await page.locator("[data-card]").first().click();
+  await page.getByTestId("discard-btn").click();
+  // Desktop keeps the log open beside the table; phones open it from the header.
+  if (info.project.name === "desktop") await expect(page.getByTestId("activity-panel")).toBeVisible();
+  else await page.getByTestId("activity-btn").click();
+  const items = page.getByTestId("activity-item");
+  await expect(items.filter({ hasText: "You threw" })).toHaveCount(1);
+  await expect(items.filter({ hasText: /picked up your|left your/ })).toHaveCount(1, { timeout: 30_000 });
+});

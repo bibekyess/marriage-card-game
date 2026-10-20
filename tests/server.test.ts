@@ -149,6 +149,46 @@ describe("socket server", () => {
     expect((await host.until((v) => v.turn === 0)).seats[1].thrown).toEqual([{ card: toss }]);
   });
 
+  it("logs who threw what and whether the next player took it, never the stock card", async () => {
+    const srv = await server();
+    const host = client(srv.port);
+    const { code } = (await host.call("create", { name: "Bibek", settings: { restrictPickup: false } })).data;
+    const guest = client(srv.port);
+    expect((await guest.call("join", { code, name: "Sita" })).ok).toBe(true);
+    await host.until((v) => v.seats.length === 2);
+    expect((await host.call("start")).ok).toBe(true);
+    const start = await guest.until((v) => v.status === "playing");
+    const [h, g] = [start.seats[0].id, start.seats[1].id];
+    const firstTop = start.discardTop!;
+
+    await host.call("draw", { from: "stock" });
+    const drawn = (await host.until((v) => v.phase === "discard")).drawn!;
+    // The guest's log says the host drew from stock, leaving the dealt card; not what they drew.
+    const gv1 = await guest.until((v) => (v.plays ?? []).length === 1);
+    expect(gv1.plays![0]).toMatchObject({ round: 1, by: h, kind: "stock", card: firstTop });
+    expect(gv1.plays![0].from).toBeUndefined();
+    const toss = (await host.until((v) => v.phase === "discard")).hand.find((c) => c !== drawn)!;
+    await host.call("discard", { card: toss });
+    await guest.until((v) => v.turn === 1);
+
+    expect((await guest.call("draw", { from: "discard" })).ok).toBe(true);
+    const hv = await host.until((v) => (v.plays ?? []).length === 3);
+    expect(hv.plays!.map((p) => [p.by, p.kind, p.card, p.from])).toEqual([
+      [h, "stock", firstTop, undefined],
+      [h, "throw", toss, undefined],
+      [g, "pick", toss, h],
+    ]);
+    const back = (await guest.until((v) => v.phase === "discard")).hand.find((c) => c !== toss)!;
+    await guest.call("discard", { card: back });
+    await host.until((v) => v.turn === 0);
+    await host.call("draw", { from: "stock" });
+    const mine = (await host.until((v) => v.phase === "discard")).drawn!;
+    const gv = await guest.until((v) => (v.plays ?? []).length === 5);
+    expect(gv.plays![4]).toMatchObject({ by: h, kind: "stock", card: back, from: g });
+    // Nothing in the guest's log names a card the host drew from the stock.
+    expect(gv.plays!.some((p) => p.card === drawn || p.card === mine)).toBe(false);
+  });
+
   it("tells everyone when the current turn started", async () => {
     const srv = await server();
     const host = client(srv.port);
