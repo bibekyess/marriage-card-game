@@ -21,7 +21,9 @@ Run `npm run typecheck && npm test` before finishing any change. There is no lin
 | Rules engine | `src/shared/` | Pure TS, **no I/O, no DOM, no Node APIs**. Imported by both server and client. |
 | Table state machine | `src/server/table.ts` | `Table` owns `TableState` (lobby → playing → roundEnd → matchEnd). Every action validates and throws `GameError` with a user-facing message. |
 | Socket server | `src/server/index.ts` | Thin: parse/validate payload, rate-limit, call a `Table` method, `reply(Ack)`, then `changed(table)` (persist + broadcast + reschedule bots/timers). |
-| Persistence | `src/server/db.ts` | `Store` interface: `PgStore` (JSONB per table) when `DATABASE_URL` is set, else `MemoryStore`. |
+| Persistence | `src/server/db.ts` | `Store` interface: `PgStore` (JSONB per table) when `DATABASE_URL` is set, else `MemoryStore`. Also holds the append-only `events` table. |
+| Event log | `src/server/events.ts` | `EventLog.track()` prints one line and stores the event fire-and-forget; it never throws into a handler. `Table` reports game events via `onEvent`, never by doing I/O itself. IPs are stored only as salted hashes. |
+| Admin page | `src/server/admin.ts` | Server-rendered `/admin` (no React), only when `ADMIN_TOKEN` is ≥ 16 chars, else 404. Escape every user string. |
 | Client | `src/client/` | React + Vite + Tailwind + shadcn/ui. One socket and store in `lib/store.ts` (`useGame()`), `screens/`, `components/game/`, `components/ui/` (hand-written shadcn). |
 | Tests | `tests/*.test.ts`, `tests/e2e/` | vitest + Playwright. |
 
