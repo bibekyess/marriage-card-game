@@ -20,7 +20,7 @@ export interface SeatView {
   /** The first `tunnels` sets in `shown` are tunnela shown before the first draw. */
   tunnels?: number;
   /** Cards this player has thrown this round, oldest first. Public, like a real discard pile. */
-  thrown: ThrownCard[];
+  thrown?: ThrownCard[];
 }
 
 export interface ThrownCard {

@@ -133,7 +133,7 @@ describe("socket server", () => {
     await host.until((v) => v.seats.length === 2);
     expect((await host.call("start")).ok).toBe(true);
     await guest.until((v) => v.status === "playing");
-    expect(guest.view.seats.every((s) => s.thrown.length === 0)).toBe(true);
+    expect(guest.view.seats.every((s) => s.thrown?.length === 0)).toBe(true);
 
     await host.call("draw", { from: "stock" });
     const thrown = (await host.until((v) => v.phase === "discard")).drawn!;
@@ -142,7 +142,7 @@ describe("socket server", () => {
     expect(gv.seats[0].thrown).toEqual([{ card: thrown }]);
 
     expect((await guest.call("draw", { from: "discard" })).ok).toBe(true);
-    const hv = await host.until((v) => v.seats[0].thrown[0]?.taken === true);
+    const hv = await host.until((v) => v.seats[0].thrown?.[0]?.taken === true);
     expect(hv.seats[0].thrown).toEqual([{ card: thrown, taken: true }]);
     const toss = (await guest.until((v) => v.phase === "discard")).hand.find((c) => c !== thrown)!;
     await guest.call("discard", { card: toss });

@@ -19,7 +19,7 @@ function ActivityList({ view: v }: { view: TableView }) {
         const seat = v.seats.find((s) => s.id === p.by);
         const roundStart = i === plays.length - 1 || plays[i + 1].round !== p.round;
         return (
-          <Fragment key={playKey(p) + i}>
+          <Fragment key={playKey(p)}>
             <li
               className={cn(
                 "flex items-center gap-2 px-2.5 py-1.5 text-xs leading-tight",

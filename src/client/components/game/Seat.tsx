@@ -28,7 +28,6 @@ interface Props {
   onOpen?: () => void;
 }
 
-/** An opponent on the rim of the table: avatar, a fan of their face-down cards, name and status. */
 /** How long the player has been on this turn; turns amber, then red, when they're slow. */
 export function TurnClock({ seconds, className }: { seconds: number; className?: string }) {
   const pace = turnPace(seconds);
@@ -50,6 +49,7 @@ export function TurnClock({ seconds, className }: { seconds: number; className?:
   );
 }
 
+/** An opponent on the rim of the table: avatar, a fan of their face-down cards, name and status. */
 export function Seat({ seat, active, dealer, progress, elapsed = null, maal, size = 46, showSets = true, fanLeft, inline, align = "center", onOpen }: Props) {
   const theme = useTheme();
   // Older cached views may not have `thrown` yet.
