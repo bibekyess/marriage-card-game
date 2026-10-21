@@ -19,14 +19,25 @@ export function setHaptics(on: boolean) {
 
 /** Browsers only allow audio after a user gesture; call this from the first tap. */
 export function unlockAudio() {
-  if (!ctx) {
+  if (!ctx || ctx.state === "closed") {
     const AC = window.AudioContext || (window as any).webkitAudioContext;
     if (AC) ctx = new AC();
   }
-  if (ctx?.state === "suspended") ctx.resume();
+  // Anything but "running" needs a nudge: iOS reports "interrupted" (missing from the TS
+  // type) after a call app like Google Meet takes the audio, and never resumes by itself.
+  if (ctx && ctx.state !== "running") ctx.resume().catch(() => {});
+}
+
+/** The context if it can play right now; otherwise nudge it and skip the sound rather than play it late. */
+function live() {
+  if (!ctx) return null;
+  if (ctx.state === "running") return ctx;
+  if (ctx.state !== "closed") ctx.resume().catch(() => {});
+  return null;
 }
 
 function tone(freq: number, start: number, dur: number, type: OscillatorType = "sine", gain = 0.08) {
+  const ctx = live();
   if (!ctx) return;
   const t = ctx.currentTime + start;
   const o = ctx.createOscillator();
@@ -42,6 +53,7 @@ function tone(freq: number, start: number, dur: number, type: OscillatorType = "
 }
 
 function noise(dur: number, gain = 0.05) {
+  const ctx = live();
   if (!ctx) return;
   const len = Math.floor(ctx.sampleRate * dur);
   const buf = ctx.createBuffer(1, len, ctx.sampleRate);

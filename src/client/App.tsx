@@ -21,11 +21,15 @@ export function App() {
   useEffect(() => {
     // iOS can suspend audio again (e.g. after the phone locks), so unlock on every gesture.
     const unlock = () => unlockAudio();
+    // Coming back from another app (e.g. Google Meet) is the usual end of an audio interruption.
+    const back = () => document.visibilityState === "visible" && unlockAudio();
     window.addEventListener("pointerdown", unlock);
     window.addEventListener("keydown", unlock);
+    document.addEventListener("visibilitychange", back);
     return () => {
       window.removeEventListener("pointerdown", unlock);
       window.removeEventListener("keydown", unlock);
+      document.removeEventListener("visibilitychange", back);
     };
   }, []);
 
