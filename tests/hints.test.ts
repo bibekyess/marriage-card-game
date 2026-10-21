@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { computeHints, computeShowState, groupedOrder, Hints } from "../src/client/lib/hints";
 import type { TableView } from "../src/shared/protocol";
+import { sortBySuit } from "../src/shared/cards";
+import { findDublees } from "../src/shared/melds";
 import { Table } from "../src/server/table";
 
 const SETS = ["AD0", "2D0", "3D0", "7S0", "8S0", "9S2", "JH0", "QH0", "KH0"];
@@ -74,5 +76,35 @@ describe("Arrange button", () => {
       ["9S0", "9H0", "9D0"],
     ]);
     expect(order.slice(6)).toEqual(["5H0", "2C0"]);
+  });
+});
+
+describe("Arrange button with dublees", () => {
+  const PAIRS = ["KC0", "KC1", "5H0", "5H1", "JD0", "JD1", "2C0", "2C1", "9S0", "9S1", "4D0", "4D1"];
+  const arrange = (hand: string[], dubleeOk: boolean, setsNeeded = 3) =>
+    groupedOrder(
+      { hand, maal: null, finishDiscard: null } as unknown as TableView,
+      { seen: null, dublees: findDublees(hand), dubleeOk, setsNeeded } as unknown as Hints,
+    ).groups;
+
+  it("lays out the dublees, in suit order, when chasing them", () => {
+    const groups = arrange([...PAIRS, "6S0", "7S0", "8S0", "3H0", "10C0", "QS0"], true);
+    expect(groups).toHaveLength(6);
+    expect(groups.every((g) => g.length === 2)).toBe(true);
+    expect(groups.map((g) => g[0])).toEqual(sortBySuit(groups.map((g) => g[0])));
+  });
+
+  it("never groups dublees when they can't be shown", () => {
+    const hand = [...PAIRS, "6S0", "7S0", "8S0", "3H0", "10C0", "QS0"];
+    expect(arrange(hand, false)).toEqual([["6S0", "7S0", "8S0", "9S0"]]);
+    expect(arrange(hand, true, 2)).toEqual([["6S0", "7S0", "8S0", "9S0"]]); // tunnela shown at the start
+    expect(arrange(["KC0", "KC1", "3H0", "7D0"], false)).toEqual([]);
+  });
+
+  it("groups even a couple of pairs when there's no pure set", () => {
+    expect(arrange(["KC0", "KC1", "3H0", "5H0", "5H1", "9D0"], true)).toEqual([
+      ["5H0", "5H1"],
+      ["KC0", "KC1"],
+    ]);
   });
 });
