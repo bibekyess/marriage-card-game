@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownUp, ArrowDownToLine, ArrowUp, BarChart3, Eye, Layers, Lightbulb, Maximize, Menu, Minimize, ScrollText, Sparkles, Trophy, WandSparkles, WifiOff } from "lucide-react";
+import { ArrowDownUp, ArrowDownToLine, ArrowUp, BarChart3, Eye, Hand as HandIcon, Layers, Lightbulb, Maximize, Menu, Minimize, ScrollText, Sparkles, Trophy, WandSparkles, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -332,7 +332,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   if (!playing) hint = v.status === "matchEnd" ? "Match over" : "Round over";
   else if (!seated)
     hint = `You're watching${v.seats.length >= MAX_PLAYERS ? " — the table is full" : " — you'll be dealt in next round"}. ${turnName}'s turn.`;
-  else if (me?.autoplay) hint = "A bot is playing for you — open the menu to take back control";
+  else if (me?.autoplay) hint = "A bot is playing for you";
   else if (canDraw && v.canOpenTunnels) hint = "Show your tunnela before you draw — they only score if shown now";
   else if (finishing && winCard) hint = `Throw your last card to win!`;
   else if (finishing && laidNow.length) hint = `${laidNow.length} set${laidNow.length > 1 ? "s" : ""} laid down — keep going, or tap a set to take it back`;
@@ -633,8 +633,16 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
                 }} aria-label="Group sets" title="Group sets">
                 <Layers />
               </Button>
-              {primary}
+              {/* While a bot plays for you, the main action becomes taking back control. */}
+              {me?.autoplay ? (
+                <Button size={btn} variant="gold" onClick={() => run("autoplay", { on: false })} data-testid="take-control">
+                  <HandIcon /> {vp.w < 400 ? "Take control" : "Take back control"}
+                </Button>
+              ) : (
+                primary
+              )}
               {discardPhase &&
+                !me?.autoplay &&
                 !winCard &&
                 selected.size <= 1 &&
                 (!one || one === v.picked ? (
