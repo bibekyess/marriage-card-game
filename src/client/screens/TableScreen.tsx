@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 import { RoundResult } from "./RoundResult";
 import { ScoreSheet } from "./ScoreSheet";
 import { MenuSheet } from "./MenuSheet";
-import { CardId, cardLabel, sortByRank, sortBySuit } from "../../shared/cards";
+import { CardId, cardLabel, isBhoot, sortByRank, sortBySuit } from "../../shared/cards";
 import { checkFinish, findDubleeFinish, findFinish, findTunnels, isMeld, MELD_LABEL, meldType } from "../../shared/melds";
 import type { TableView } from "../../shared/protocol";
 import { BotView, discardTip, drawTip, Tip } from "../../shared/bot";
@@ -645,9 +645,9 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
                 !me?.autoplay &&
                 !winCard &&
                 selected.size <= 1 &&
-                (!one || one === v.picked ? (
+                (!one || one === v.picked || isBhoot(one) ? (
                   <Button size={btn} variant="outline" className="border-gold/50 text-gold/90 disabled:opacity-80" disabled data-testid="discard-btn">
-                    {one === v.picked && one ? "Can't throw back" : "Select a card"}
+                    {!one ? "Select a card" : isBhoot(one) ? "Can't throw Bhoot" : "Can't throw back"}
                   </Button>
                 ) : (
                   <Button size={btn} variant={primary ? "felt" : "gold"} onClick={() => discard(one)} data-testid="discard-btn">
@@ -692,7 +692,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
                 const full = [...o, ...handOrder.filter((c) => laidSet.has(c))];
                 arrangeGroups(full, moved ? afterDrag(groups, full, moved) : groups);
               }}
-              onSwipeUp={discardPhase ? (c) => c !== v.picked && discard(c) : undefined}
+              onSwipeUp={discardPhase ? (c) => c !== v.picked && !isBhoot(c) && discard(c) : undefined}
               dealKey={`${v.code}:${v.round}`}
             />
           </div>
