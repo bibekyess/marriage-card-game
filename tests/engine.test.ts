@@ -628,6 +628,18 @@ describe("printed Jokers and the Bhoot", () => {
     }
   });
 
+  it("never turns up a printed card as the first discard", () => {
+    // Random deals: a printed card ends up last in the stock often enough to be caught here.
+    for (let i = 0; i < 300; i++) {
+      const { table } = Table.create("FLIP", "Host", {}, 1);
+      table._dealForTest((n) => Math.floor(Math.random() * n));
+      const g = table.s.game!;
+      expect(g.discard).toHaveLength(1);
+      expect(isPrinted(g.discard[0])).toBe(false);
+      expect(g.stock.length + g.discard.length + 1 + Object.values(g.hands).flat().length).toBe(159);
+    }
+  });
+
   it("keeps older tables without printed cards", () => {
     const { table } = Table.create("OLD", "Host", {}, 1);
     const saved = JSON.parse(JSON.stringify(table.s));

@@ -442,7 +442,10 @@ export class Table {
     // The maal is always a natural card: a Joker or the Bhoot can't be the tiplu.
     const natural = stock.flatMap((c, i) => (isPrinted(c) ? [] : [i]));
     const maal = stock.splice(natural[rand ? rand(natural.length) : Math.floor(Math.random() * natural.length)], 1)[0];
-    const discard = [stock.pop()!];
+    // The face-up card is natural too: a Bhoot there would be a free pick for the first player.
+    let flip = stock.length - 1;
+    while (flip > 0 && isPrinted(stock[flip])) flip--;
+    const discard = stock.splice(flip, 1);
     this.s.game = {
       hands,
       stock,
