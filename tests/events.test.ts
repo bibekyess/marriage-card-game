@@ -1,0 +1,431 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createServer, IncomingMessage, Server as HttpServer } from "node:http";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { io as connect, Socket } from "socket.io-client";
+import pg from "pg";
+import { MemoryStore, PgStore, Store } from "../src/server/db";
+import { computeStats, DAY_MS, EventLog, GameEvent } from "../src/server/events";
+import { startServer, ServerOptions } from "../src/server/index";
+import { Table } from "../src/server/table";
+import type { Ack, RoundRow } from "../src/shared/protocol";
+
+const servers: Awaited<ReturnType<typeof startServer>>[] = [];
+const sockets: Socket[] = [];
+const upstreams: HttpServer[] = [];
+
+afterEach(async () => {
+  sockets.splice(0).forEach((s) => s.disconnect());
+  for (const s of servers.splice(0)) await s.close();
+  for (const u of upstreams.splice(0)) u.close();
+});
+
+async function boot(extra: Partial<ServerOptions> = {}) {
+  const store = new MemoryStore();
+  const srv = await startServer({ port: 0, store, delayScale: 0, clientDir: null, adminToken: "", umamiUrl: "", umamiWebsiteId: "", umamiDashboardUrl: "", ...extra });
+  servers.push(srv);
+  return { srv, store, base: `http://localhost:${srv.port}` };
+}
+
+function clientDir() {
+  const dir = mkdtempSync(path.join(tmpdir(), "mg-client-"));
+  mkdirSync(path.join(dir, "assets"));
+  writeFileSync(path.join(dir, "index.html"), "<!doctype html><html><head><title>x</title></head><body>app</body></html>");
+  return dir;
+}
+
+function call<T = any>(port: number, ev: string, payload: unknown): Promise<Ack<T>> {
+  const s = connect(`http://localhost:${port}`, { transports: ["websocket"], forceNew: true });
+  sockets.push(s);
+  return new Promise((r) => s.emit(ev, payload, r));
+}
+
+const TOKEN = "a-long-admin-token-for-tests";
+const basic = (pw: string) => ({ authorization: `Basic ${Buffer.from(`anyone:${pw}`).toString("base64")}` });
+const types = async (store: MemoryStore) => (await store.recentEvents(50)).map((e) => e.type).reverse();
+
+describe("event log", () => {
+  it("records table creation, joins, bots and reconnects with hashed addresses", async () => {
+    const { srv, store } = await boot();
+    const made = await call(srv.port, "create", { name: "Ram", bots: 1 });
+    const { code } = made.data;
+    const joined = await call(srv.port, "join", { code, name: "Sita" });
+    await call(srv.port, "resume", { code, token: joined.data.token });
+    await new Promise((r) => setTimeout(r, 50));
+    const ev = await store.recentEvents(50);
+    const t = ev.map((e) => e.type);
+    expect(t).toContain("table.created");
+    expect(t).toContain("player.joined");
+    expect(t).toContain("match.started");
+    expect(ev.find((e) => e.type === "table.created")).toMatchObject({ code, name: "Ram" });
+    expect(ev.find((e) => e.type === "player.joined")).toMatchObject({ code, name: "Sita" });
+    const hash = ev.find((e) => e.type === "player.joined")!.ipHash!;
+    expect(hash).toMatch(/^[0-9a-f]{12}$/);
+    expect(JSON.stringify(ev)).not.toContain("127.0.0.1");
+    expect((await store.stats()).all.tables).toBe(1);
+  });
+
+  it("marks spectators and counts only real bots", async () => {
+    const { srv, store } = await boot();
+    const made = await call(srv.port, "create", { name: "Ram", bots: 1 });
+    const s = connect(`http://localhost:${srv.port}`, { transports: ["websocket"], forceNew: true });
+    sockets.push(s);
+    const ack = (ev: string, p?: unknown) => new Promise<Ack>((r) => s.emit(ev, p, r));
+    await ack("join", { code: made.data.code, name: "Sita" });
+    await ack("leave");
+    const ev = await store.recentEvents(50);
+    expect(ev.find((e) => e.type === "match.started")?.data).toMatchObject({ players: ["Ram"], bots: 1 });
+    expect(ev.find((e) => e.type === "player.joined")).toMatchObject({ name: "Sita", data: { watching: true } });
+    expect(ev.find((e) => e.type === "player.left")).toMatchObject({ name: "Sita", data: { watching: true } });
+  });
+
+  it("logs bots added in the lobby and a match that was started", async () => {
+    const { srv, store } = await boot();
+    const made = await call(srv.port, "create", { name: "Ram" });
+    const s = connect(`http://localhost:${srv.port}`, { transports: ["websocket"], forceNew: true });
+    sockets.push(s);
+    const ack = (ev: string, p?: unknown) => new Promise<Ack>((r) => s.emit(ev, p, r));
+    await ack("resume", { code: made.data.code, token: made.data.token });
+    expect((await ack("addBot")).ok).toBe(true);
+    expect((await ack("start")).ok).toBe(true);
+    expect((await ack("endMatch")).ok).toBe(true);
+    // No round was scored, so the match is not counted as finished.
+    expect(await types(store)).toEqual(expect.arrayContaining(["bot.added", "match.started"]));
+    expect((await store.stats()).all.matches).toBe(0);
+  });
+
+  it("counts a visitor once per half hour", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const store = new MemoryStore();
+      const events = new EventLog(store, "salt");
+      events.visit("1.1.1.1");
+      events.visit("1.1.1.1");
+      events.visit("2.2.2.2");
+      vi.advanceTimersByTime(31 * 60_000);
+      events.visit("1.1.1.1");
+      await new Promise((r) => setImmediate(r));
+      expect((await store.stats()).all.visitors).toBe(2);
+      expect((await types(store)).filter((t) => t === "visit")).toHaveLength(3);
+    } finally {
+      vi.useRealTimers();
+      log.mockRestore();
+    }
+  });
+
+  it("treats an IPv6 /64 and IPv4-mapped addresses as one visitor, and caps visits per minute", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const store = new MemoryStore();
+      const events = new EventLog(store, "salt");
+      expect(events.hash("2001:db8:1:2:aaaa::1")).toBe(events.hash("2001:db8:1:2:bbbb:cccc:dddd:eeee"));
+      expect(events.hash("2001:db8:1:2::1")).not.toBe(events.hash("2001:db8:1:3::1"));
+      expect(events.hash("::ffff:1.2.3.4")).toBe(events.hash("1.2.3.4"));
+      for (let i = 0; i < 200; i++) {
+        events.visit(`10.0.${i >> 8}.${i & 255}`);
+        await events.flush();
+      }
+      expect((await store.stats()).all.visitors).toBe(60);
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("flush waits for writes in flight", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      let stored = 0;
+      const slow = { logEvent: () => new Promise<void>((r) => setTimeout(() => (stored++, r()), 20)) } as unknown as Store;
+      const events = new EventLog(slow, "salt");
+      events.track("table.created", { code: "ABCD" });
+      await events.flush();
+      expect(stored).toBe(1);
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("drops events instead of piling up writes when the store is slow", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      let writes = 0;
+      const stuck = { logEvent: () => (writes++, new Promise<void>(() => {})) } as unknown as Store;
+      const events = new EventLog(stuck, "salt");
+      for (let i = 0; i < 80; i++) events.track("table.created", { code: "ABCD" });
+      expect(writes).toBe(50);
+      expect(err).toHaveBeenCalledTimes(1);
+    } finally {
+      log.mockRestore();
+      err.mockRestore();
+    }
+  });
+});
+
+describe("match stats", () => {
+  function setup() {
+    const { table: t, seat } = Table.create("ABCD", "Ram", {});
+    const seen: { type: string; data?: Record<string, unknown> }[] = [];
+    t.onEvent = (type, f) => seen.push({ type, data: f.data });
+    const scoreRound = (winnerId = "someone") => t.s.rounds.push({ round: t.s.round, winnerId } as RoundRow);
+    return { t, host: seat.id, seen, scoreRound, ended: () => seen.filter((e) => e.type === "match.ended") };
+  }
+
+  it("ignores a match where no round was won", () => {
+    const { t, host, ended } = setup();
+    t.addBot(host);
+    t.start(host);
+    t.endMatch(host);
+    expect(ended()).toHaveLength(0);
+  });
+
+  it("ignores a match where every round was called off", () => {
+    const { t, host, scoreRound, ended } = setup();
+    t.addBot(host);
+    t.start(host);
+    scoreRound("");
+    t.endMatch(host);
+    expect(ended()).toHaveLength(0);
+  });
+
+  it("counts a scored match once and leaves out people who left", () => {
+    const { t, host, scoreRound, ended } = setup();
+    const { id } = t.join("Sita");
+    t.start(host);
+    scoreRound();
+    t.leave(id);
+    t.endMatch(host);
+    t.endMatch(host);
+    expect(ended()).toEqual([{ type: "match.ended", data: { players: ["Ram"], rounds: 1 } }]);
+  });
+
+  it("ends the old match when a new one is started mid-match", () => {
+    const { t, host, seen, scoreRound } = setup();
+    t.addBot(host);
+    t.start(host);
+    scoreRound();
+    t.s.status = "roundEnd";
+    t.newMatch(host);
+    t.start(host);
+    expect(seen.map((e) => e.type)).toEqual(["bot.added", "match.started", "match.ended", "match.started"]);
+  });
+});
+
+describe("admin page", () => {
+  it("does not exist without a token, not even for the client app", async () => {
+    const { base, store } = await boot({ clientDir: clientDir() });
+    for (const p of ["/admin", "/admin/", "/admin/x"]) {
+      const r = await fetch(`${base}${p}`, { headers: basic("anything") });
+      expect(r.status).toBe(404);
+      expect(await r.text()).not.toContain("app");
+    }
+    expect(await store.recentEvents(10)).toEqual([]);
+  });
+
+  it("stays off when the token is too short to be safe", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { base } = await boot({ adminToken: "short" });
+      expect((await fetch(`${base}/admin`, { headers: basic("short") })).status).toBe(404);
+      expect(err).toHaveBeenCalledWith(expect.stringContaining("shorter than 16"));
+    } finally {
+      err.mockRestore();
+    }
+  });
+
+  it("makes a wrong password wait, but not the right one", async () => {
+    const { base } = await boot({ adminToken: TOKEN, delayScale: 1 });
+    let t = Date.now();
+    expect((await fetch(`${base}/admin`, { headers: basic("nope") })).status).toBe(401);
+    expect(Date.now() - t).toBeGreaterThanOrEqual(450);
+    t = Date.now();
+    expect((await fetch(`${base}/admin`, { headers: basic(TOKEN) })).status).toBe(200);
+    expect(Date.now() - t).toBeLessThan(400);
+  });
+
+  it("needs the right token when one is set", async () => {
+    const { base, srv } = await boot({ adminToken: TOKEN });
+    const none = await fetch(`${base}/admin`);
+    expect(none.status).toBe(401);
+    expect(none.headers.get("www-authenticate")).toMatch(/^Basic/);
+    expect((await fetch(`${base}/admin`, { headers: basic("wrong") })).status).toBe(401);
+
+    await call(srv.port, "create", { name: "<img src=x o=1>" });
+    const ok = await fetch(`${base}/admin`, { headers: basic(TOKEN) });
+    expect(ok.status).toBe(200);
+    expect(ok.headers.get("cache-control")).toBe("no-store");
+    const html = await ok.text();
+    expect(html).toContain("Live now");
+    expect(html).toContain("&lt;img src=x o=1&gt;");
+    expect(html).not.toContain("<img src=x");
+  });
+
+  it("refuses wrong guesses after too many, but always lets the right token in", async () => {
+    const { base } = await boot({ adminToken: TOKEN });
+    for (let i = 0; i < 20; i++) await fetch(`${base}/admin`); // no header: never counts
+    for (let i = 0; i < 10; i++) expect((await fetch(`${base}/admin`, { headers: basic("nope") })).status).toBe(401);
+    expect((await fetch(`${base}/admin`, { headers: basic("nope") })).status).toBe(429);
+    expect((await fetch(`${base}/admin`, { headers: basic(TOKEN) })).status).toBe(200);
+    // Logging in cleared the count.
+    expect((await fetch(`${base}/admin`, { headers: basic("nope") })).status).toBe(401);
+  });
+});
+
+describe("Umami", () => {
+  const ID = "123e4567-e89b-12d3-a456-426614174000";
+  async function fakeUmami() {
+    const seen: { headers: IncomingMessage["headers"]; body: string; url?: string }[] = [];
+    const up = createServer((req, res) => {
+      let body = "";
+      req.on("data", (c) => (body += c));
+      req.on("end", () => {
+        seen.push({ headers: req.headers, body, url: req.url });
+        if (req.url === "/script.js") return res.end("/* tracker */");
+        res.setHeader("content-type", "application/json");
+        res.end('{"cache":"abc"}');
+      });
+    });
+    await new Promise<void>((r) => up.listen(0, r));
+    upstreams.push(up);
+    return { seen, url: `http://127.0.0.1:${(up.address() as any).port}` };
+  }
+
+  it("adds the tracker only when a website id is set", async () => {
+    const up = await fakeUmami();
+    const plain = await boot({ clientDir: clientDir(), umamiUrl: up.url });
+    expect(await (await fetch(`${plain.base}/`)).text()).not.toContain("/stats/s.js");
+    await plain.srv.close();
+    servers.pop();
+
+    const { base } = await boot({ clientDir: clientDir(), umamiUrl: up.url, umamiWebsiteId: ID });
+    const html = await (await fetch(`${base}/`)).text();
+    expect(html).toContain(`<script defer src="/stats/s.js" data-website-id="${ID}" data-host-url="/stats" data-exclude-search="true"></script></head>`);
+    const bad = await boot({ clientDir: clientDir(), umamiUrl: up.url, umamiWebsiteId: "not-a-uuid" });
+    expect(await (await fetch(`${bad.base}/`)).text()).not.toContain("/stats/s.js");
+  });
+
+  it("counts a visit for the real pages only, once per visitor", async () => {
+    const { base, store } = await boot({ clientDir: clientDir() });
+    for (const p of ["/", "/t/ABCD", "/t/abcd/"]) await fetch(`${base}${p}`);
+    expect((await types(store)).filter((t) => t === "visit")).toHaveLength(1);
+  });
+
+  it("still serves the app for unknown paths but does not count them", async () => {
+    const { base, store } = await boot({ clientDir: clientDir() });
+    for (const p of ["/wp-admin", "/.env", "/xmlrpc.php", "/t/ABC", "/t/ABCDE", "/missing.js"]) await fetch(`${base}${p}`);
+    expect((await fetch(`${base}/wp-admin`)).status).toBe(200);
+    expect(await types(store)).toEqual([]);
+  });
+
+  it("proxies the script and events, passing on the client address", async () => {
+    const up = await fakeUmami();
+    const { base } = await boot({ umamiUrl: up.url });
+    const js = await fetch(`${base}/stats/s.js`);
+    expect(await js.text()).toBe("/* tracker */");
+    const r = await fetch(`${base}/stats/api/send`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "user-agent": "TestAgent/1", "x-forwarded-for": "6.6.6.6" },
+      body: JSON.stringify({ type: "event", payload: { website: ID } }),
+    });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ cache: "abc" });
+    const sent = up.seen.find((x) => x.url === "/api/send")!;
+    expect(sent.headers["user-agent"]).toBe("TestAgent/1");
+    // TRUST_PROXY is off, so the spoofed header is ignored and the real socket address is used.
+    expect(sent.headers["x-forwarded-for"]).toMatch(/127\.0\.0\.1$/);
+    expect(JSON.parse(sent.body).type).toBe("event");
+  });
+
+  it("keeps serving the last script when a refresh fails", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const up = await fakeUmami();
+      const { base } = await boot({ umamiUrl: up.url });
+      expect(await (await fetch(`${base}/stats/s.js`)).text()).toBe("/* tracker */");
+      upstreams[0].closeAllConnections();
+      await new Promise((r) => upstreams[0].close(r));
+      vi.advanceTimersByTime(11 * 60_000);
+      const again = await fetch(`${base}/stats/s.js`);
+      expect(again.status).toBe(200);
+      expect(await again.text()).toBe("/* tracker */");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shares one script fetch between parallel requests and backs off after a failure", async () => {
+    const up = await fakeUmami();
+    const ok = await boot({ umamiUrl: up.url });
+    await Promise.all([1, 2, 3, 4, 5].map(() => fetch(`${ok.base}/stats/s.js`)));
+    expect(up.seen.filter((x) => x.url === "/script.js")).toHaveLength(1);
+
+    let hits = 0;
+    const broken = createServer((_req, res) => {
+      hits++;
+      res.statusCode = 500;
+      res.end();
+    });
+    await new Promise<void>((r) => broken.listen(0, r));
+    upstreams.push(broken);
+    const bad = await boot({ umamiUrl: `http://127.0.0.1:${(broken.address() as any).port}` });
+    for (let i = 0; i < 3; i++) expect((await fetch(`${bad.base}/stats/s.js`)).status).toBe(502);
+    expect(hits).toBe(1);
+  });
+
+  it("answers 502 when Umami is down and 413 for huge bodies", async () => {
+    const { base } = await boot({ umamiUrl: "http://127.0.0.1:1" });
+    expect((await fetch(`${base}/stats/s.js`)).status).toBe(502);
+    const r = await fetch(`${base}/stats/api/send`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+    expect(r.status).toBe(502);
+    const big = await fetch(`${base}/stats/api/send`, { method: "POST", headers: { "content-type": "application/json" }, body: "x".repeat(20_000) });
+    expect(big.status).toBe(413);
+  });
+});
+
+// Runs only when a database is available, in a throwaway schema so existing data is untouched.
+describe.skipIf(!process.env.TEST_DATABASE_URL)("postgres events", () => {
+  it("gives the same stats as the memory store, lists newest first and prunes old visits", async () => {
+    const url = process.env.TEST_DATABASE_URL!;
+    const schema = `mg_test_${Date.now()}`;
+    const admin = new pg.Client({ connectionString: url });
+    await admin.connect();
+    await admin.query(`CREATE SCHEMA ${schema}`);
+    const store = new PgStore(`${url}${url.includes("?") ? "&" : "?"}options=-c%20search_path%3D${schema}`);
+    try {
+      await store.init();
+      const now = Date.now();
+      const at = (ago: number) => now - ago;
+      const ev = (ago: number, type: GameEvent["type"], f: Partial<GameEvent> = {}): GameEvent => ({ at: at(ago), type, ...f });
+      const events: GameEvent[] = [
+        ev(200 * DAY_MS, "visit", { ipHash: "aaa" }),
+        ev(100 * DAY_MS, "visit", { ipHash: "bbb" }),
+        ev(3 * DAY_MS, "table.created", { code: "ABCD", name: "Ram" }),
+        ev(3 * DAY_MS, "player.joined", { code: "ABCD", name: "Sita" }),
+        ev(3 * DAY_MS, "match.ended", { code: "ABCD", data: { players: ["Ram", "Sita"], rounds: 3 } }),
+        ev(60_000, "visit", { ipHash: "bbb" }),
+        ev(50_000, "visit", { ipHash: "ccc" }),
+        ev(40_000, "table.created", { code: "WXYZ", name: "Zed" }),
+        ev(30_000, "player.joined", { code: "WXYZ", name: "Ram" }),
+        ev(20_000, "match.ended", { code: "WXYZ", data: { players: ["Zed", "Ram"], rounds: 2 } }),
+        ev(10_000, "match.ended", { code: "WXYZ", data: { players: ["Bo", "Al"], rounds: 1 } }),
+        ev(5_000, "bot.added", { code: "WXYZ", name: "Bot" }),
+      ];
+      for (const e of events) await store.logEvent(e);
+
+      expect(await store.stats(now)).toEqual(computeStats(events, now));
+      expect((await store.stats(now)).top.map((p) => p.name)).toEqual(["Ram", "Al", "Bo", "Sita", "Zed"]);
+      expect(await store.recentEvents(50)).toEqual([...events].reverse());
+
+      await store.pruneVisits(now - 90 * DAY_MS);
+      const left = events.filter((e) => e.type !== "visit" || e.at >= now - 90 * DAY_MS);
+      expect(await store.stats(now)).toEqual(computeStats(left, now));
+      expect(await store.recentEvents(50)).toHaveLength(left.length);
+    } finally {
+      await store.close();
+      await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+      await admin.end();
+    }
+  });
+});

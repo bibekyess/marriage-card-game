@@ -1,0 +1,132 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    --background: 160 50% 5%;
+    --foreground: 140 15% 94%;
+    --card: 160 25% 9%;
+    --card-foreground: 140 15% 94%;
+    --popover: 160 22% 11%;
+    --popover-foreground: 140 15% 94%;
+    --primary: 41 91% 58%;
+    --primary-foreground: 41 100% 8%;
+    --secondary: 160 20% 14%;
+    --secondary-foreground: 140 15% 92%;
+    --muted: 160 18% 13%;
+    --muted-foreground: 150 12% 61%;
+    --accent: 160 22% 17%;
+    --accent-foreground: 140 15% 96%;
+    --destructive: 358 69% 59%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 150 15% 22%;
+    --input: 150 15% 24%;
+    --ring: 41 91% 58%;
+    --radius: 0.9rem;
+    --felt: 14 90 63;
+    --felt-light: 23 121 90;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+}
+
+@layer components {
+  .surface {
+    @apply rounded-2xl border border-white/[0.06] bg-card/90 shadow-panel backdrop-blur;
+  }
+  .gold-text {
+    background: linear-gradient(180deg, #ffd77a, #e9a224);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .app-bg {
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(23, 121, 90, 0.35), transparent 60%),
+      radial-gradient(900px 500px at 110% 110%, rgba(245, 184, 61, 0.08), transparent 60%),
+      hsl(var(--background));
+  }
+}
+
+@layer utilities {
+  /* Keep bottom actions off the screen edge, and clear the iPhone home bar. */
+  .safe-pb {
+    padding-bottom: max(env(safe-area-inset-bottom), 12px);
+  }
+  /* Keep seats and cards out from under the notch in landscape full screen. */
+  .safe-px {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+/* ---------- Themes (per-viewer, html[data-theme]) ---------- */
+html[data-theme="royal"] .app-bg {
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(158, 27, 50, 0.38), transparent 60%),
+    radial-gradient(900px 500px at 110% 110%, rgba(245, 184, 61, 0.12), transparent 60%),
+    #14040a;
+}
+html[data-theme="kite"] .app-bg {
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(31, 111, 163, 0.45), transparent 60%),
+    radial-gradient(900px 500px at 110% 110%, rgba(255, 179, 71, 0.12), transparent 60%),
+    #061a2b;
+}
+html[data-theme="glow"] .app-bg {
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(23, 121, 90, 0.3), transparent 60%),
+    radial-gradient(900px 600px at 90% 100%, rgba(245, 184, 61, 0.14), transparent 60%),
+    #050d0a;
+}
+html[data-theme="royal"] {
+  --muted-foreground: 345 12% 68%;
+  --felt: 122 18 36;
+  --felt-light: 160 30 52;
+  --background: 345 60% 5%;
+  --card: 345 35% 9%;
+  --popover: 345 32% 11%;
+  --secondary: 345 25% 15%;
+  --muted: 345 22% 13%;
+  --accent: 345 25% 18%;
+  --border: 345 20% 22%;
+  --input: 345 20% 24%;
+}
+html[data-theme="kite"] {
+  --muted-foreground: 210 15% 68%;
+  --felt: 15 77 122;
+  --felt-light: 31 111 163;
+  --background: 210 70% 6%;
+  --card: 210 45% 11%;
+  --popover: 210 42% 13%;
+  --secondary: 210 35% 17%;
+  --muted: 210 30% 15%;
+  --accent: 210 35% 20%;
+  --border: 210 28% 24%;
+  --input: 210 28% 26%;
+}
+html[data-theme="glow"] {
+  /* Glow keeps Classic's tokens; listed for clarity. */
+  --felt: 14 90 63;
+  --felt-light: 23 121 90;
+}

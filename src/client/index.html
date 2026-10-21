@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta name="theme-color" content="#07120f" />
+    <script>
+      // Apply the saved table look before anything paints.
+      try {
+        var t = JSON.parse(localStorage.getItem("mg.pref.theme") || '"glow"');
+        document.documentElement.dataset.theme = t;
+        var c = { royal: "#1a0508", kite: "#061a2b", glow: "#050d0a" }[t];
+        if (c) document.querySelector('meta[name="theme-color"]').setAttribute("content", c);
+      } catch (e) {}
+    </script>
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="description" content="Play Nepali Marriage with family and friends in the browser. Share a table code, play 5 rounds, settle up." />
+    <title>Marriage — Nepali card table</title>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>

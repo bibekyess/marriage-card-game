@@ -1,0 +1,111 @@
+import { useState } from "react";
+import { cn } from "@/lib/utils";
+import { isLook, lookUrl } from "../../../shared/looks";
+import { AvatarBadge } from "@/components/theme/decor";
+import type { ThemeId } from "@/lib/themes";
+
+const GRADIENTS = [
+  ["#f59e0b", "#b45309"],
+  ["#ec4899", "#9d174d"],
+  ["#3b82f6", "#1e3a8a"],
+  ["#10b981", "#065f46"],
+  ["#8b5cf6", "#4c1d95"],
+  ["#ef4444", "#7f1d1d"],
+  ["#14b8a6", "#134e4a"],
+  ["#f97316", "#7c2d12"],
+  ["#06b6d4", "#164e63"],
+  ["#a3e635", "#3f6212"],
+  ["#e879f9", "#701a75"],
+  ["#facc15", "#713f12"],
+];
+
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => Array.from(w)[0]!.toUpperCase())
+    .join("") || "?";
+
+interface Props {
+  name: string;
+  index: number;
+  /** Picture id from shared/looks.ts; initials when missing. */
+  look?: string | null;
+  size?: number;
+  isBot?: boolean;
+  offline?: boolean;
+  active?: boolean;
+  /** 0..1 of the turn timer remaining; draws a ring. */
+  progress?: number | null;
+  /** Festive red tika dot (Royal / Kite themes). */
+  tika?: boolean;
+  /** Small festival badge at the top right (Kite theme). */
+  badge?: ThemeId | null;
+  className?: string;
+}
+
+export function Avatar({ name, index, look, size = 44, isBot, offline, active, progress, tika, badge, className }: Props) {
+  const [a, b] = GRADIENTS[index % GRADIENTS.length];
+  // Fall back to initials if the picture is unknown or fails to load.
+  const [broken, setBroken] = useState<string | null>(null);
+  const pic = isLook(look) && look !== broken ? look : null;
+  const r = size / 2 + 3;
+  const circ = 2 * Math.PI * r;
+  return (
+    <div className={cn("relative shrink-0", className)} style={{ width: size, height: size }}>
+      {active && (
+        <span className="absolute -inset-[5px] animate-pulse-ring rounded-full border-2 border-gold/70" aria-hidden />
+      )}
+      {progress != null && (
+        <svg className="absolute -inset-[5px] -rotate-90" width={size + 10} height={size + 10} aria-hidden>
+          <circle
+            cx={size / 2 + 5}
+            cy={size / 2 + 5}
+            r={r}
+            fill="none"
+            stroke={progress < 0.25 ? "#e0565b" : "#f5b83d"}
+            strokeWidth={3}
+            strokeDasharray={circ}
+            strokeDashoffset={circ * (1 - progress)}
+            strokeLinecap="round"
+            style={{ transition: "stroke-dashoffset 1s linear" }}
+          />
+        </svg>
+      )}
+      <div
+        className={cn(
+          "flex h-full w-full items-center justify-center overflow-hidden rounded-full font-bold text-white shadow-md ring-2 ring-black/30",
+          offline && "grayscale opacity-60",
+        )}
+        style={{ background: `linear-gradient(145deg, ${a}, ${b})`, fontSize: size * 0.36 }}
+      >
+        {pic ? (
+          <img src={lookUrl(pic)} alt="" width={size} height={size} draggable={false} className="h-full w-full select-none" onError={() => setBroken(pic)} />
+        ) : (
+          initials(name)
+        )}
+      </div>
+      {tika && (
+        <span
+          className="absolute left-1/2 top-[14%] -translate-x-1/2 rounded-full bg-[#d7192a] ring-1 ring-[#ffd36e]/80"
+          style={{ width: Math.max(4, size * 0.11), height: Math.max(5, size * 0.15) }}
+          aria-hidden
+        />
+      )}
+      {badge && size >= 30 && (
+        <span className="absolute -right-1.5 -top-1.5" aria-hidden>
+          <AvatarBadge theme={badge} size={Math.round(size * 0.42)} />
+        </span>
+      )}
+      {isBot && (
+        <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 rounded-full bg-[#0b1713] px-1 text-[8px] font-extrabold leading-[13px] tracking-wider text-gold ring-1 ring-gold/40">
+          BOT
+        </span>
+      )}
+      {offline && !isBot && (
+        <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-zinc-500 ring-2 ring-background" title="Offline" />
+      )}
+    </div>
+  );
+}
