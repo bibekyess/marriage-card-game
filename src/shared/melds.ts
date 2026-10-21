@@ -362,3 +362,98 @@ export function completesPure(hand: CardId[], pick: CardId, allowDublee: boolean
     for (let j = i + 1; j < hand.length; j++) if (isPure([hand[i], hand[j], pick])) return true;
   return false;
 }
+
+// ---------- arranging a hand for display ----------
+
+const MELD_ORDER: Record<MeldType, number> = { tunnel: 0, pure: 1, sequence: 2, trial: 3, dublee: 4 };
+
+/**
+ * The sets to group a hand into for the auto-arrange button: as many cards as possible in
+ * complete sets (trials and wild-filled sets too, once seen), using as few wild cards as
+ * possible. Cards that fit nowhere are left out. `pureOnly` (before the maal is seen) counts
+ * only tunnels and pure sequences, with the Bhoot as the only wild card.
+ */
+export function arrangeMelds(hand: CardId[], maal: CardId | null, pureOnly = false): CardId[][] {
+  const wild = (c: CardId) => (pureOnly ? isBhoot(c) : isWild(c, maal));
+  const ok = (g: CardId[]) => (pureOnly ? isPure(g) : isMeld(g, maal));
+  const nat = hand.filter((c) => !wild(c));
+  const bhoot = hand.find(isBhoot) ?? null;
+  const others = hand.filter((c) => wild(c) && !isBhoot(c));
+  const typeOf = (g: CardId[]) => meldType(g, pureOnly ? null : maal) ?? "sequence";
+
+  // Candidate sets, listed under their first card: three naturals, or two plus a wild card.
+  // Sets with the same faces are interchangeable, so each is tried once.
+  type Cand = { idx: number[]; wild: "any" | "bhoot" | null; score: number };
+  const cands: Cand[][] = nat.map(() => []);
+  const seen = new Set<string>();
+  const add = (idx: number[], w: Cand["wild"], g: CardId[]) => {
+    const k = idx[0] + ":" + idx.slice(1).map((i) => faceKey(nat[i])).join() + ":" + w;
+    if (seen.has(k)) return;
+    seen.add(k);
+    cands[idx[0]].push({ idx: [...idx], wild: w, score: w ? 0 : 3 - MELD_ORDER[typeOf(g)] });
+  };
+  for (const idx of combos(nat.length, 3)) {
+    const g = idx.map((i) => nat[i]);
+    if (ok(g)) add(idx, null, g);
+  }
+  if (bhoot || others.length)
+    for (const idx of combos(nat.length, 2)) {
+      const g = idx.map((i) => nat[i]);
+      if (others.length && ok([...g, others[0]])) add(idx, "any", g);
+      else if (bhoot && ok([...g, bhoot])) add(idx, "bhoot", g);
+    }
+  for (const cs of cands) cs.sort((a, b) => Number(!!a.wild) - Number(!!b.wild) || b.score - a.score);
+
+  // Depth-first over the naturals in order: each one starts a set or stays loose. Best = most
+  // cards covered, then fewest wild cards used, then the purest sets. Capped to stay quick.
+  type Pick = { idx: number[]; wild: CardId | null };
+  let best = { covered: 0, wilds: 0, score: 0, picks: [] as Pick[] };
+  const picks: Pick[] = [];
+  const used = nat.map(() => false);
+  let nodes = 0;
+  const go = (i: number, covered: number, wilds: number, score: number, free: number, bh: boolean) => {
+    if (++nodes > 50_000) return;
+    while (i < nat.length && used[i]) i++;
+    if (
+      covered > best.covered ||
+      (covered === best.covered && (wilds < best.wilds || (wilds === best.wilds && score > best.score)))
+    )
+      best = { covered, wilds, score, picks: [...picks] };
+    if (i >= nat.length) return;
+    const left = used.slice(i).filter((u) => !u).length;
+    if (covered + left + free + Number(bh) < best.covered) return;
+    for (const c of cands[i]) {
+      if (c.idx.some((j) => used[j])) continue;
+      let w: CardId | null = null;
+      let f = free;
+      let b = bh;
+      if (c.wild === "any" && f) w = others[--f];
+      else if (c.wild && b) [w, b] = [bhoot, false];
+      else if (c.wild) continue;
+      c.idx.forEach((j) => (used[j] = true));
+      picks.push({ idx: c.idx, wild: w });
+      go(i + 1, covered + c.idx.length + Number(!!w), wilds + Number(!!w), score + c.score, f, b);
+      picks.pop();
+      c.idx.forEach((j) => (used[j] = false));
+    }
+    go(i + 1, covered, wilds, score, free, bh);
+  };
+  go(0, 0, 0, 0, others.length, !!bhoot);
+
+  const groups = best.picks.map((p) => [...p.idx.map((i) => nat[i]), ...(p.wild ? [p.wild] : [])]);
+  // Grow sets with loose cards that extend them: a longer run, a fourth suit on a trial.
+  const grouped = new Set(groups.flat());
+  let loose = nat.filter((c) => !grouped.has(c));
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const c of loose) {
+      const g = groups.find((g) => ok([...g, c]));
+      if (!g) continue;
+      g.push(c);
+      loose = loose.filter((x) => x !== c);
+      grew = true;
+      break;
+    }
+  }
+  return groups.sort((a, b) => MELD_ORDER[typeOf(a)] - MELD_ORDER[typeOf(b)]);
+}

@@ -1,5 +1,6 @@
 import { CardId, maalKind, MaalKind, sortBySuit } from "../../shared/cards";
-import { completesPure, findDubleeShow, findDublees, findPureSets, findShow, isTunnel } from "../../shared/melds";
+import { arrangeMelds, completesPure, findDubleeShow, findDublees, findFinish, findPureSets, findShow } from "../../shared/melds";
+import { readingOrder } from "./groups";
 import type { TableView } from "../../shared/protocol";
 import { dubleesAllowed } from "../../shared/settings";
 
@@ -116,17 +117,25 @@ export function computeShowState(v: TableView, h: Hints, selected: Set<CardId>, 
   return { enabled: false, route: "pure", label: `Show · ${done}/3`, reason: `You need ${plural(missing, "more pure set")}${orDublee} to see the maal.`, suggestion: null };
 }
 
-/** Complete sets found in the hand (pure sets / dublees, or natural sets once seen), then the rest by suit. */
+/**
+ * Complete sets found in the hand, then the rest by suit with wild cards last. Before seeing:
+ * every pure set (or dublees). Once seen: the winning layout if there is one, else as many
+ * cards as possible in tunnels, sequences and trials, wild cards filling gaps.
+ */
 export function groupedOrder(v: TableView, h: Hints): { order: CardId[]; groups: CardId[][] } {
-  let groups: CardId[][] = [];
-  if (!h.seen) groups = h.pureSets.length ? h.pureSets : h.dublees.length >= 3 ? h.dublees : [];
-  else if (h.seen === "dublee") groups = h.dublees;
-  else {
-    // Pull out every natural tunnel and pure triple greedily; the rest sorted.
-    groups = findPureSets(v.hand.filter((c) => !maalKind(c, v.maal)), 6).sort((a, b) => Number(isTunnel(b)) - Number(isTunnel(a)));
+  const isMaal = (c: CardId) => !!maalKind(c, v.maal);
+  let groups: CardId[][];
+  if (h.seen === "dublee") groups = h.dublees;
+  else if (h.seen) {
+    const finish = v.finishDiscard ? findFinish(v.hand, v.maal, { preferDiscard: v.finishDiscard }) : null;
+    groups = finish?.groups ?? arrangeMelds(v.hand, v.maal);
+  } else {
+    groups = arrangeMelds(v.hand, null, true);
+    if (!groups.length && h.dublees.length >= 3) groups = h.dublees;
   }
+  // Natural cards in reading order, wild cards at the end of their set.
+  groups = groups.map((g) => [...readingOrder(g.filter((c) => !isMaal(c))), ...g.filter(isMaal)]);
   const used = new Set(groups.flat());
   const rest = sortBySuit(v.hand.filter((c) => !used.has(c)));
-  const wilds = rest.filter((c) => maalKind(c, v.maal));
-  return { order: [...groups.flat(), ...rest.filter((c) => !maalKind(c, v.maal)), ...wilds], groups };
+  return { order: [...groups.flat(), ...rest.filter((c) => !isMaal(c)), ...rest.filter(isMaal)], groups };
 }

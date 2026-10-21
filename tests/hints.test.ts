@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { computeHints, computeShowState } from "../src/client/lib/hints";
+import { computeHints, computeShowState, groupedOrder, Hints } from "../src/client/lib/hints";
+import type { TableView } from "../src/shared/protocol";
 import { Table } from "../src/server/table";
 
 const SETS = ["AD0", "2D0", "3D0", "7S0", "8S0", "9S2", "JH0", "QH0", "KH0"];
@@ -60,5 +61,18 @@ describe("Show button", () => {
     const { table, id, state } = myTurn(["9C0", "9C1", "9C2", ...SETS.slice(0, 6), ...FILLER]);
     table.openTunnels(id);
     expect(state(SETS.slice(0, 6))).toMatchObject({ enabled: true, label: "Show 2 pure" });
+  });
+});
+
+describe("Arrange button", () => {
+  it("groups trials and wild-filled sets once the maal is seen", () => {
+    const hand = ["KS0", "9S0", "2C0", "9H0", "7C0", "9D0", "5H0", "8C0"];
+    const v = { hand, maal: "KD0", finishDiscard: null } as unknown as TableView;
+    const { order, groups } = groupedOrder(v, { seen: "pure", dublees: [] } as unknown as Hints);
+    expect(groups).toEqual([
+      ["7C0", "8C0", "KS0"],
+      ["9S0", "9H0", "9D0"],
+    ]);
+    expect(order.slice(6)).toEqual(["5H0", "2C0"]);
   });
 });

@@ -3,6 +3,7 @@ import { cardLabel, fullDeck, isCardId, isPrinted, isWild, maalKind } from "../s
 import { chooseDiscard } from "../src/shared/bot";
 import {
   allFinishes,
+  arrangeMelds,
   checkFinish,
   completesPure,
   findDubleeFinish,
@@ -637,5 +638,49 @@ describe("printed Jokers and the Bhoot", () => {
     expect(loaded.s.settings.jokers).toBe(0);
     expect(loaded.s.settings.bhoot).toBe(false);
     expect(Table.create("NEW", "Host", {}, 1).table.s.settings).toMatchObject({ jokers: 2, bhoot: true, bhootPoints: 5 });
+  });
+});
+
+describe("arranging a hand", () => {
+  const MAAL = "KD0"; // wild: KD KH KS KC, QD, AD, Jokers, Bhoot
+  const sorted = (gs: string[][]) => gs.map((g) => [...g].sort().join(" ")).sort();
+
+  it("finds trials once seen, even where a pure sequence looks tempting", () => {
+    const hand = ["7S0", "8S0", "9S0", "7H0", "7C0", "8H0", "8C0", "9H0", "9D0", "2C0", "5D0", "JS0"];
+    expect(sorted(arrangeMelds(hand, MAAL))).toEqual(sorted([
+      ["7S0", "7H0", "7C0"],
+      ["8S0", "8H0", "8C0"],
+      ["9S0", "9H0", "9D0"],
+    ]));
+  });
+
+  it("fills gaps with wild cards, using as few as it can", () => {
+    const wilds = ["KS0", "JK0", "KH0"];
+    const gs = arrangeMelds(["7C0", "9C0", "4S0", "4H0", ...wilds, "2D0"], MAAL);
+    const naturals = (g: string[]) => g.filter((c) => !wilds.includes(c));
+    expect(gs.map(naturals)).toEqual([["7C0", "9C0"], ["4S0", "4H0"]]);
+    expect(gs.every((g) => g.length === 3)).toBe(true); // one wild card each, the third stays free
+  });
+
+  it("prefers natural sets over spending a wild card", () => {
+    const gs = arrangeMelds(["3H0", "4H0", "5H0", "3S0", "KS0", "9C0"], MAAL);
+    expect(sorted(gs)).toEqual(sorted([["3H0", "4H0", "5H0"]]));
+  });
+
+  it("grows runs and trials with cards that extend them", () => {
+    const gs = arrangeMelds(["3H0", "4H0", "5H0", "6H0", "7H0", "9S0", "9H0", "9C0", "9D0", "2C0"], MAAL);
+    expect(sorted(gs)).toEqual(sorted([
+      ["3H0", "4H0", "5H0", "6H0", "7H0"],
+      ["9S0", "9H0", "9C0", "9D0"],
+    ]));
+  });
+
+  it("before seeing, counts only pure sets (all of them) and the Bhoot", () => {
+    const hand = ["AD0", "2D0", "3D0", "7S0", "8S0", "9S0", "JH0", "QH0", "KH0", "5C0", "5C1", "5C2", "4S0", "4H0", "4C0", "6D0", "8D0", "BH0"];
+    const gs = arrangeMelds(hand, null, true);
+    expect(gs).toHaveLength(5);
+    expect(gs[0]).toEqual(["5C0", "5C1", "5C2"]); // tunnela first
+    expect(gs.some((g) => g.includes("4S0"))).toBe(false); // a trial isn't pure
+    expect(sorted(gs)).toContain(["6D0", "8D0", "BH0"].sort().join(" "));
   });
 });
