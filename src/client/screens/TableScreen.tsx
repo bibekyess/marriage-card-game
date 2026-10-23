@@ -190,6 +190,10 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   useEffect(iPhoneInstallTip, []);
   const [scores, setScores] = useState(false);
   const [thrownFor, setThrownFor] = useState<string | null>(null);
+  // Drag-to-throw: the discard slot the hand aims at, the hover state, and the card in flight.
+  const discardSlot = useRef<HTMLDivElement>(null);
+  const [dropState, setDropState] = useState<true | string | null>(null);
+  const [thrown, setThrown] = useState<{ id: CardId; landed: boolean } | null>(null);
   const [panelOpen, setPanelOpen] = useActivityPanel();
   const [activitySheet, setActivitySheet] = useState(false);
   // Desktop has room for the log beside the table; smaller screens open it as a sheet.
@@ -345,6 +349,13 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   else hint = `${turnName} is playing…`;
 
   const discard = (c: CardId) => run("discard", { card: c });
+  const canThrow = (c: CardId): true | string => (c === v.picked ? "Can't throw back" : isBhoot(c) ? "Can't throw Bhoot" : true);
+  const throwCard = async (c: CardId) => {
+    setThrown({ id: c, landed: false });
+    const ok = await discard(c);
+    if (!ok) setThrown(null);
+    return ok;
+  };
   const show = (route: "pure" | "dublee") => run("show", { route, cards: [...selected] }).then((ok) => ok && setSelected(new Set()));
 
   const myTotal = seated ? totals(v)[v.you] ?? 0 : 0;
@@ -539,6 +550,9 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
               canDraw={canDraw}
               canPickDiscard={canDraw && h.canPickDiscard}
               thrownBy={v.discardBy ? (v.discardBy === v.you ? "You" : nameOf(v, v.discardBy)) : null}
+              slotRef={discardSlot}
+              dropState={discardPhase ? dropState : null}
+              incoming={thrown}
               onDraw={(from) => run("draw", { from })}
             />
           </div>
@@ -693,7 +707,11 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
                 const full = [...o, ...handOrder.filter((c) => laidSet.has(c))];
                 arrangeGroups(full, moved ? afterDrag(groups, full, moved) : groups);
               }}
-              onSwipeUp={discardPhase ? (c) => c !== v.picked && !isBhoot(c) && discard(c) : undefined}
+              canThrow={discardPhase ? canThrow : undefined}
+              onThrow={throwCard}
+              onLanded={(c) => setThrown((t) => (t?.id === c ? { ...t, landed: true } : t))}
+              onThrowHover={setDropState}
+              discardRef={discardSlot}
               dealKey={`${v.code}:${v.round}`}
             />
           </div>

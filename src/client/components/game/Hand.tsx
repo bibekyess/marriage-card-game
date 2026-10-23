@@ -22,8 +22,16 @@ interface Props {
   cardWidth: number;
   onToggle(id: CardId): void;
   onReorder(order: CardId[], moved?: CardId): void;
-  /** Called when a card is flicked upwards; return value ignored. */
-  onSwipeUp?(id: CardId): void;
+  /** Whether a card may be thrown now: true, or a short reason why not. Omit when it isn't time to throw. */
+  canThrow?(id: CardId): true | string;
+  /** Throw a card dropped on the pile (or flicked up); resolves false if the server refused. */
+  onThrow?(id: CardId): Promise<boolean>;
+  /** The thrown card has finished flying to the pile. */
+  onLanded?(id: CardId): void;
+  /** The drag entered or left the throw zone (true = can throw, string = why not). */
+  onThrowHover?(state: true | string | null): void;
+  /** The discard pile's card slot; dragging a card onto it throws the card. */
+  discardRef?: React.RefObject<HTMLElement>;
   /** Identifies the current deal (table + round); the hand fans in when it changes. */
   dealKey?: string;
 }
@@ -36,15 +44,25 @@ interface Drag {
   x: number;
   y: number;
   moved: boolean;
+  /** Over the throw zone: true if the card can go, else the reason it can't. */
+  zone: true | string | null;
 }
+
+interface Flight {
+  id: CardId;
+  from: string;
+  to: string;
+}
+
+const FLIGHT_MS = 220;
 
 /**
  * The player's hand: cards overlap to fit the width (two rows on narrow screens).
- * Tap to select, drag sideways to rearrange, flick up to throw.
+ * Tap to select, drag sideways to rearrange, drag onto the pile (or flick up) to throw.
  */
 const NO_GROUPS: HandGroup[] = [];
 
-export function Hand({ cards, groups = NO_GROUPS, onGroupTap, onUngroup, maal, selected, drawn, glow, cardWidth, onToggle, onReorder, onSwipeUp, dealKey }: Props) {
+export function Hand({ cards, groups = NO_GROUPS, onGroupTap, onUngroup, maal, selected, drawn, glow, cardWidth, onToggle, onReorder, canThrow, onThrow, onLanded, onThrowHover, discardRef, dealKey }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(360);
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -115,7 +133,8 @@ export function Hand({ cards, groups = NO_GROUPS, onGroupTap, onUngroup, maal, s
 
   // The order the hand would have if the dragged card were dropped where it is now.
   const orderFor = (d: Drag | null) => {
-    if (!d?.moved) return cards;
+    // Aiming at the pile is not a rearrange: the rest of the hand stays put.
+    if (!d?.moved || d.zone) return cards;
     // Use where the dragged card actually is (its centre), not where the finger is.
     const from = slot(cards.indexOf(d.id));
     const px = from.x + d.x - d.startX;
@@ -130,18 +149,87 @@ export function Hand({ cards, groups = NO_GROUPS, onGroupTap, onUngroup, maal, s
     return rest;
   };
   const order = orderFor(drag);
+  const posOf = new Map(order.map((id, i) => [id, i]));
 
   // The live drag, read by the pointer handlers. A quick flick (iOS especially) can deliver
   // down, move and up before React re-renders, so the handlers can't rely on `drag` state.
   const live = useRef<Drag | null>(null);
   const update = (d: Drag | null) => {
+    if ((live.current?.zone ?? null) !== (d?.zone ?? null)) onThrowHover?.(d?.zone ?? null);
     live.current = d;
     setDrag(d);
   };
 
+  // A thrown card stays hidden in the hand until the server takes it (or refuses).
+  const [pending, setPending] = useState<CardId | null>(null);
+  const [flight, setFlight] = useState<Flight | null>(null);
+  const ghost = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (drag && !cards.includes(drag.id)) update(null);
-  }, [cards, drag]);
+    if (pending && !cards.includes(pending)) setPending(null);
+  }, [cards, drag, pending]);
+
+  useLayoutEffect(() => {
+    if (!flight) return;
+    let done = false;
+    const land = () => {
+      done = true;
+      setFlight(null);
+      onLanded?.(flight.id);
+    };
+    try {
+      ghost.current?.animate([{ transform: flight.from }, { transform: flight.to }], {
+        duration: FLIGHT_MS,
+        easing: "cubic-bezier(.2,.8,.2,1)",
+        fill: "forwards",
+      });
+    } catch {}
+    // A timer, not onfinish, so the pile card always shows even if the animation never runs.
+    const t = setTimeout(land, FLIGHT_MS);
+    return () => {
+      clearTimeout(t);
+      if (!done) onLanded?.(flight.id);
+    };
+  }, [flight]);
+
+  // Where the dragged card sits on the page, and whether that is the throw zone.
+  const placed = (d: Drag) => {
+    const from = slot(cards.indexOf(d.id));
+    return { x: from.x + d.x - d.startX, y: from.y + d.y - d.startY };
+  };
+  const zoneOf = (d: Drag): Drag["zone"] => {
+    const box = ref.current?.getBoundingClientRect();
+    if (!d.moved || !canThrow || !box) return null;
+    const p = placed(d);
+    const cx = box.left + p.x + cw / 2, cy = box.top + p.y + ch / 2;
+    const pile = discardRef?.current?.getBoundingClientRect();
+    const m = cw * 0.5;
+    const overPile = !!pile && cx > pile.left - m && cx < pile.right + m && cy > pile.top - m && cy < pile.bottom + m;
+    // Anywhere clearly above the hand counts too, so a quick flick up still throws.
+    if (!overPile && d.y > box.top - ch * 0.25) return null;
+    return canThrow(d.id);
+  };
+
+  const throwCard = (d: Drag) => {
+    setPending(d.id);
+    // Throw first, so the pile already expects this card when it lands.
+    void onThrow?.(d.id).then((ok) => {
+      if (!ok) setPending(null);
+    });
+    const box = ref.current?.getBoundingClientRect();
+    const slotEl = discardRef?.current;
+    const pile = slotEl?.getBoundingClientRect();
+    const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (!box || !slotEl || !pile || still) return onLanded?.(d.id);
+    const p = placed(d);
+    // Land centred on the pile, at the pile's card size and tilt. The slot may be scaled up
+    // while hovered, so its size comes from offsetWidth (unscaled); a centred scale keeps the centre.
+    const s = (slotEl.offsetWidth - 8) / cw;
+    const tx = pile.left + pile.width / 2 - box.left - cw / 2;
+    const ty = pile.top + pile.height / 2 - box.top - ch / 2;
+    setFlight({ id: d.id, from: `translate(${p.x}px, ${p.y}px) rotate(-3deg)`, to: `translate(${tx}px, ${ty}px) rotate(3deg) scale(${s})` });
+  };
 
   const onDown = (e: React.PointerEvent, id: CardId) => {
     // Only the first finger drags; a new first touch replaces any drag whose "up" got lost.
@@ -150,14 +238,12 @@ export function Hand({ cards, groups = NO_GROUPS, onGroupTap, onUngroup, maal, s
     try {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     } catch {}
-    update({ id, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, x: e.clientX, y: e.clientY, moved: false });
+    update({ id, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, x: e.clientX, y: e.clientY, moved: false, zone: null });
   };
-  const follow = (d: Drag, e: React.PointerEvent): Drag => ({
-    ...d,
-    x: e.clientX,
-    y: e.clientY,
-    moved: d.moved || Math.hypot(e.clientX - d.startX, e.clientY - d.startY) > 8,
-  });
+  const follow = (d: Drag, e: React.PointerEvent): Drag => {
+    const next = { ...d, x: e.clientX, y: e.clientY, moved: d.moved || Math.hypot(e.clientX - d.startX, e.clientY - d.startY) > 8 };
+    return { ...next, zone: zoneOf(next) };
+  };
   const onMove = (e: React.PointerEvent) => {
     const d = live.current;
     if (d?.pointerId === e.pointerId) update(follow(d, e));
@@ -168,9 +254,9 @@ export function Hand({ cards, groups = NO_GROUPS, onGroupTap, onUngroup, maal, s
     const d = follow(prev, e);
     update(null);
     if (!d.moved) return onToggle(d.id);
-    // Throw only when the card is flicked clearly out of the hand, upwards.
-    const top = ref.current?.getBoundingClientRect().top ?? 0;
-    if (onSwipeUp && e.clientY < top - ch * 0.25 && Math.abs(e.clientX - d.startX) < cw * 3) return onSwipeUp(d.id);
+    if (d.zone === true) return throwCard(d);
+    // Dropped on the pile but not allowed: it just goes back.
+    if (d.zone) return;
     const next = orderFor(d);
     if (next.join() !== cards.join()) onReorder(next, d.id);
   };
@@ -209,17 +295,19 @@ export function Hand({ cards, groups = NO_GROUPS, onGroupTap, onUngroup, maal, s
             </div>
           );
         })}
-      {order.map((id, i) => {
+      {/* Kept in hand order: moving the dragged card's element in the DOM would drop its pointer capture and end the drag. */}
+      {cards.map((id) => {
+        const i = posOf.get(id) ?? 0;
         const dragging = drag?.moved && drag.id === id;
+        const hidden = pending === id;
         const p = slot(i);
         const lift = selected.has(id) ? -Math.round(ch * 0.16) : 0;
         let style: React.CSSProperties = { transform: `translate(${p.x}px, ${p.y + lift}px)`, left: 0, top: 0, zIndex: i + 1 };
         if (dragging) {
-          const from = slot(cards.indexOf(id));
-          const x = from.x + drag!.x - drag!.startX;
-          const y = from.y + drag!.y - drag!.startY;
-          style = { transform: `translate(${x}px, ${y}px) rotate(-3deg)`, left: 0, top: 0, zIndex: 100, transition: "none" };
+          const { x, y } = placed(drag!);
+          style = { transform: `translate(${x}px, ${y}px) rotate(-3deg)`, left: 0, top: 0, zIndex: 100, transition: "none", willChange: "transform" };
         }
+        if (hidden) style = { ...style, visibility: "hidden" };
         return (
           <button
             key={id}
@@ -253,6 +341,11 @@ export function Hand({ cards, groups = NO_GROUPS, onGroupTap, onUngroup, maal, s
           </button>
         );
       })}
+      {flight && (
+        <div ref={ghost} className="pointer-events-none absolute left-0 top-0" style={{ transform: flight.from, zIndex: 100, willChange: "transform" }} aria-hidden>
+          <PlayingCard id={flight.id} width={cw} maal={maal} className="shadow-lift" />
+        </div>
+      )}
     </div>
   );
 }

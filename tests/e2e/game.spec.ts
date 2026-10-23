@@ -62,6 +62,60 @@ test("a quick flick up throws the card, even when the touch events arrive togeth
   await expect(page.locator(`[data-card="${thrown}"]`)).toHaveCount(0);
 });
 
+test("dragging a card onto the discard pile throws it", async ({ page }) => {
+  await startPractice(page, "3", "2");
+  await expect(page.getByTestId("stock")).toBeEnabled({ timeout: 30_000 });
+  await page.getByTestId("stock").click();
+  await expect(page.getByTestId("discard-btn")).toBeVisible();
+  const cards = page.locator("[data-card]");
+  await expect(cards).toHaveCount(22);
+  // The rightmost card that isn't the Bhoot: a long diagonal drag to the pile.
+  const ids = await cards.evaluateAll((els) => els.map((e) => e.getAttribute("data-card")!));
+  const thrown = ids.filter((c) => c !== "BH0").pop()!;
+  const from = (await page.locator(`[data-card="${thrown}"]`).boundingBox())!;
+  const to = (await page.getByTestId("discard").boundingBox())!;
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
+  await expect(page.getByTestId("discard")).toContainText("Release to throw");
+  await page.mouse.up();
+  await expect(cards).toHaveCount(21);
+  await expect(page.locator(`[data-card="${thrown}"]`)).toHaveCount(0);
+});
+
+test("a card dragged rightwards keeps following the pointer", async ({ page }) => {
+  await startPractice(page, "3", "2");
+  const card = page.locator("[data-card]").first();
+  const from = (await card.boundingBox())!;
+  await page.mouse.move(from.x + 10, from.y + from.height / 2);
+  await page.mouse.down();
+  // Passing later cards reorders the hand; the drag must survive that.
+  await page.mouse.move(from.x + 10 + from.width * 4, from.y + from.height / 2, { steps: 12 });
+  const now = (await card.boundingBox())!;
+  expect(now.x - from.x).toBeGreaterThan(from.width * 3);
+  await page.mouse.up();
+});
+
+test("with reduced motion, a card dragged onto the pile shows there straight away", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await startPractice(page, "3", "2");
+  await expect(page.getByTestId("stock")).toBeEnabled({ timeout: 30_000 });
+  await page.getByTestId("stock").click();
+  await expect(page.getByTestId("discard-btn")).toBeVisible();
+  const cards = page.locator("[data-card]");
+  const ids = await cards.evaluateAll((els) => els.map((e) => e.getAttribute("data-card")!));
+  const thrown = ids.filter((c) => c !== "BH0").pop()!;
+  const from = (await page.locator(`[data-card="${thrown}"]`).boundingBox())!;
+  const to = (await page.getByTestId("discard").boundingBox())!;
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
+  await page.mouse.up();
+  await expect(page.locator(`[data-card="${thrown}"]`)).toHaveCount(0);
+  // The top discard is never left hidden waiting for a flight that didn't happen.
+  expect(await page.getByTestId("discard").locator(".opacity-0").count()).toBe(0);
+});
+
 test("a bot plays a whole match for me and the settlement shows who pays", async ({ page }) => {
   await startPractice(page, "1", "2");
   await page.getByRole("button", { name: "Menu" }).click();

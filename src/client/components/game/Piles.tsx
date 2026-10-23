@@ -16,6 +16,12 @@ interface Props {
   canPickDiscard: boolean;
   /** Who threw the top card (shown under the pile). */
   thrownBy?: string | null;
+  /** The discard slot, so the hand can aim dragged cards at it. */
+  slotRef?: React.Ref<HTMLDivElement>;
+  /** A card is being dragged over the drop zone: ok, or the reason it can't be thrown. */
+  dropState?: true | string | null;
+  /** A card the player just threw by dragging: hidden until its flight lands, then shown without the drop. */
+  incoming?: { id: string; landed: boolean } | null;
   onDraw(from: "stock" | "discard"): void;
 }
 
@@ -30,9 +36,10 @@ function Caption({ children, active }: { children: React.ReactNode; active?: boo
 }
 
 /** Stock, maal and discard pile in the middle of the felt. */
-export function Piles({ cw, stockCount, discardTop, discardUnder, maal, maalHidden, canDraw, canPickDiscard, thrownBy, onDraw }: Props) {
+export function Piles({ cw, stockCount, discardTop, discardUnder, maal, maalHidden, canDraw, canPickDiscard, thrownBy, slotRef, dropState, incoming, onDraw }: Props) {
   const theme = useTheme();
   const canPick = canPickDiscard && !!discardTop;
+  const flown = !!incoming && incoming.id === discardTop;
   return (
     <div className="flex items-end justify-center gap-[clamp(14px,4vw,40px)]">
       <button
@@ -79,14 +86,20 @@ export function Piles({ cw, stockCount, discardTop, discardUnder, maal, maalHidd
         aria-label={discardTop ? (canPick ? "Pick up the top discard" : "Top discard (can't pick up)") : "Discard pile is empty"}
         data-testid="discard"
       >
-        <div className="relative rounded-lg border-2 border-dashed border-transparent p-0.5"
+        <div
+          ref={slotRef}
+          className={cn(
+            "relative rounded-lg border-2 border-dashed border-transparent p-0.5 transition-[transform,background-color,border-color,box-shadow] duration-150",
+            dropState === true && "border-gold bg-gold/15 shadow-[0_0_24px_rgba(245,184,61,.55)] motion-safe:scale-[1.06]",
+            typeof dropState === "string" && "border-destructive bg-destructive/15",
+          )}
           style={{ minWidth: cw + 8, minHeight: cw * 1.42 + 8 }}
         >
           {discardUnder && <PlayingCard id={discardUnder} width={cw} maal={maal} className="absolute left-[-3px] top-[2px] rotate-[-6deg] opacity-80" />}
           {discardTop ? (
             // Keyed by card so every new throw lands with a little drop.
             <div className="relative rotate-[3deg]">
-              <div key={discardTop} className="motion-safe:animate-card-drop">
+              <div key={discardTop} className={cn(!flown && "motion-safe:animate-card-drop", flown && !incoming?.landed && "opacity-0")}>
                 <PlayingCard
                   id={discardTop}
                   width={cw}
@@ -99,7 +112,13 @@ export function Piles({ cw, stockCount, discardTop, discardUnder, maal, maalHidd
             <div className="rounded-lg border-2 border-dashed border-white/20" style={{ width: cw, height: cw * 1.42 }} />
           )}
         </div>
-        <Caption active={canPick}>Discard</Caption>
+        {dropState ? (
+          <Caption active>
+            <span className={dropState === true ? "text-gold" : "text-white"}>{dropState === true ? "Release to throw" : dropState}</span>
+          </Caption>
+        ) : (
+          <Caption active={canPick}>Discard</Caption>
+        )}
         <span className="pointer-events-none absolute -bottom-4 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold text-white/60" aria-live="polite">
           {thrownBy && discardTop ? `${thrownBy} threw ${cardLabel(discardTop)}` : ""}
         </span>
