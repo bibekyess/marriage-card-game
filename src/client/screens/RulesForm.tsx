@@ -3,7 +3,28 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { CURRENCIES, Settings, timerLabel, TURN_TIMERS, UnseenRule } from "../../shared/settings";
+import { CURRENCIES, Scale, Settings, timerLabel, TURN_TIMERS, UnseenRule } from "../../shared/settings";
+
+/** Three point fields for holding 1, 2 or 3 of a kind. */
+function ScaleNums({ value, onChange, disabled }: { value: Scale; onChange(s: Scale): void; disabled?: boolean }) {
+  return (
+    <div className="flex gap-1.5">
+      {[0, 1, 2].map((i) => (
+        <Num
+          key={i}
+          w="w-14"
+          value={value[i]}
+          disabled={disabled}
+          onChange={(v) => {
+            const a = [...value] as Scale;
+            a[i] = v;
+            onChange(a);
+          }}
+        />
+      ))}
+    </div>
+  );
+}
 
 interface Props {
   value: Settings;
@@ -131,51 +152,23 @@ export function RulesForm({ value: s, onChange, disabled }: Props) {
         <Row title="Unseen game point" hint="…and this from each player who didn't.">
           <Num value={s.unseenPoints} disabled={disabled} onChange={(v) => up("unseenPoints", v)} />
         </Row>
-        <Row title="Tiplu" hint="Each tiplu card.">
-          <Num value={s.tiplu} disabled={disabled} onChange={(v) => up("tiplu", v)} />
+        <Row title="Tiplu" hint="For 1 / 2 / 3 tiplu cards.">
+          <ScaleNums value={s.tiplu} disabled={disabled} onChange={(v) => up("tiplu", v)} />
         </Row>
-        <Row title="Poplu / Jhiplu" hint="Each, one rank above / below tiplu.">
-          <Num value={s.popluJhiplu} disabled={disabled} onChange={(v) => up("popluJhiplu", v)} />
+        <Row title="Poplu / Jhiplu" hint="For 1 / 2 / 3 poplu, and the same for jhiplu.">
+          <ScaleNums value={s.popluJhiplu} disabled={disabled} onChange={(v) => up("popluJhiplu", v)} />
         </Row>
-        <Row title="Marriage" hint="Tiplu + Poplu + Jhiplu together.">
-          <Num value={s.marriage} disabled={disabled} onChange={(v) => up("marriage", v)} />
+        <Row title="Marriage" hint="For 1 / 2 / 3 sets of Tiplu + Poplu + Jhiplu.">
+          <ScaleNums value={s.marriage} disabled={disabled} onChange={(v) => up("marriage", v)} />
         </Row>
         <Row title="Alter" hint="For 1 / 2 / 3 alter cards.">
-          <div className="flex gap-1.5">
-            {[0, 1, 2].map((i) => (
-              <Num
-                key={i}
-                w="w-14"
-                value={s.alter[i]}
-                disabled={disabled}
-                onChange={(v) => {
-                  const a = [...s.alter] as Settings["alter"];
-                  a[i] = v;
-                  up("alter", a);
-                }}
-              />
-            ))}
-          </div>
+          <ScaleNums value={s.alter} disabled={disabled} onChange={(v) => up("alter", v)} />
         </Row>
         <Row title="Tunnel" hint="Each tunnel shown at the start (needs maal seen).">
           <Num value={s.tunnel} disabled={disabled} onChange={(v) => up("tunnel", v)} />
         </Row>
         <Row title="Jokers" hint="For 1 / 2 / 3 printed Jokers.">
-          <div className="flex gap-1.5">
-            {[0, 1, 2].map((i) => (
-              <Num
-                key={i}
-                w="w-14"
-                value={s.jokerPoints[i]}
-                disabled={disabled || !s.jokers}
-                onChange={(v) => {
-                  const a = [...s.jokerPoints] as Settings["jokerPoints"];
-                  a[i] = v;
-                  up("jokerPoints", a);
-                }}
-              />
-            ))}
-          </div>
+          <ScaleNums value={s.jokerPoints} disabled={disabled || !s.jokers} onChange={(v) => up("jokerPoints", v)} />
         </Row>
         <Row title="Bhoot" hint="The printed Bhoot card.">
           <Num value={s.bhootPoints} disabled={disabled || !s.bhoot} onChange={(v) => up("bhootPoints", v)} />

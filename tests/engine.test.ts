@@ -19,7 +19,7 @@ import {
   meldType,
 } from "../src/shared/melds";
 import { maalPoints, scoreRound, settle } from "../src/shared/scoring";
-import { DEFAULT_SETTINGS, sanitizeSettings } from "../src/shared/settings";
+import { DEFAULT_SETTINGS, sanitizeSettings, Settings } from "../src/shared/settings";
 import { Table } from "../src/server/table";
 
 const S = DEFAULT_SETTINGS;
@@ -90,6 +90,36 @@ describe("scoring", () => {
     // marriage 10 + alter ×2 = 15
     expect(b.marriages).toBe(1);
     expect(b.points).toBe(10 + 15);
+  });
+
+  it("scores tiplu, poplu and jhiplu on 1/2/3 scales", () => {
+    const maal = "7D0"; // tiplu 7D, poplu 8D, jhiplu 6D
+    const pts = (cards: string[]) => maalPoints(cards, [], maal, S).points;
+    expect([pts(["7D1"]), pts(["7D1", "7D2"]), pts(["7D0", "7D1", "7D2"])]).toEqual([3, 7, 15]);
+    expect([pts(["8D0"]), pts(["8D0", "8D1"]), pts(["8D0", "8D1", "8D2"])]).toEqual([2, 5, 10]);
+    expect([pts(["6D0"]), pts(["6D0", "6D1"]), pts(["6D0", "6D1", "6D2"])]).toEqual([2, 5, 10]);
+    // Poplu and jhiplu count separately.
+    expect(pts(["8D0", "8D1", "6D0"])).toBe(5 + 2);
+  });
+
+  it("scores marriages 10/30/50 in place of their cards", () => {
+    const maal = "7D0";
+    const pts = (cards: string[]) => maalPoints(cards, [], maal, S).points;
+    expect(pts(["7D0", "8D0", "6D0"])).toBe(10);
+    expect(pts(["7D0", "7D1", "8D0", "8D1", "6D0", "6D1"])).toBe(30);
+    expect(pts(["7D0", "7D1", "7D2", "8D0", "8D1", "8D2", "6D0", "6D1", "6D2"])).toBe(50);
+    // Leftovers score on their own scale: 1 marriage + 1 tiplu + 1 poplu.
+    expect(pts(["7D0", "7D1", "8D0", "8D1", "6D0"])).toBe(10 + 3 + 2);
+  });
+
+  it("moves older flat tiplu/poplu/marriage settings to the scales", () => {
+    const old = sanitizeSettings({ tiplu: 3, popluJhiplu: 2, marriage: 10 } as unknown as Partial<Settings>, {
+      ...S,
+      tiplu: 3,
+      popluJhiplu: 2,
+      marriage: 10,
+    } as unknown as Settings);
+    expect(old).toMatchObject({ tiplu: [3, 7, 15], popluJhiplu: [2, 5, 10], marriage: [10, 30, 50] });
   });
 
   it("matches the MPC example: 2 players, unseen loser, no maal", () => {

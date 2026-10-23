@@ -55,11 +55,11 @@ export function RulesSheet({ open, onOpenChange, settings = DEFAULT_SETTINGS }: 
               <b className="text-gold">gold ★</b> scores points, <b className="text-zinc-300">silver ★</b> is wild but scores nothing.
             </p>
             <ul className="grid grid-cols-2 gap-2 text-xs">
-              <li className="rounded-lg bg-black/20 p-2"><b>★ Tiplu</b> — the maal card ({s.tiplu} pts)</li>
-              <li className="rounded-lg bg-black/20 p-2"><b>★ Poplu</b> — one above, same suit ({s.popluJhiplu})</li>
-              <li className="rounded-lg bg-black/20 p-2"><b>★ Jhiplu</b> — one below, same suit ({s.popluJhiplu})</li>
+              <li className="rounded-lg bg-black/20 p-2"><b>★ Tiplu</b> — the maal card ({s.tiplu.join("/")} pts)</li>
+              <li className="rounded-lg bg-black/20 p-2"><b>★ Poplu</b> — one above, same suit ({s.popluJhiplu.join("/")})</li>
+              <li className="rounded-lg bg-black/20 p-2"><b>★ Jhiplu</b> — one below, same suit ({s.popluJhiplu.join("/")})</li>
               <li className="rounded-lg bg-black/20 p-2"><b>★ Alter</b> — same rank &amp; colour ({s.alter.join("/")})</li>
-              <li className="col-span-2 rounded-lg bg-black/20 p-2"><b className="text-zinc-300">★ Plain wild</b> — same rank, other colour (wild, no points). Tiplu + Poplu + Jhiplu = <b>Marriage</b> ({s.marriage}).</li>
+              <li className="col-span-2 rounded-lg bg-black/20 p-2"><b className="text-zinc-300">★ Plain wild</b> — same rank, other colour (wild, no points). Tiplu + Poplu + Jhiplu = <b>Marriage</b> ({s.marriage.join("/")} for 1/2/3).</li>
             </ul>
             {(s.jokers > 0 || s.bhoot) && (
               <>

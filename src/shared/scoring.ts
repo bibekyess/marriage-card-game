@@ -1,6 +1,6 @@
 import { CardId, maalKind } from "./cards";
 import { isTunnel } from "./melds";
-import { Settings } from "./settings";
+import { Scale, Settings } from "./settings";
 
 export interface MaalBreakdown {
   tiplu: number;
@@ -16,7 +16,13 @@ export interface MaalBreakdown {
   points: number;
 }
 
-/** Maal points held by one player. Every tunnel in `groups` scores. */
+/** Points for `n` cards of one kind (capped at 3). */
+const tier = (scale: Scale | undefined, n: number) => (n && scale ? scale[Math.min(n, 3) - 1] : 0);
+
+/**
+ * Maal points held by one player. Every tunnel in `groups` scores.
+ * Cards that make a marriage score on the marriage scale instead of their own.
+ */
 export function maalPoints(cards: CardId[], groups: CardId[][], maal: CardId, s: Settings): MaalBreakdown {
   const b = { tiplu: 0, poplu: 0, jhiplu: 0, alter: 0, bhoot: 0, joker: 0, marriages: 0, tunnels: 0, points: 0 };
   for (const c of cards) {
@@ -25,14 +31,15 @@ export function maalPoints(cards: CardId[], groups: CardId[][], maal: CardId, s:
   }
   b.marriages = Math.min(b.tiplu, b.poplu, b.jhiplu);
   b.tunnels = groups.filter(isTunnel).length;
-  const single = s.tiplu + 2 * s.popluJhiplu;
+  const m = b.marriages;
   b.points =
-    b.tiplu * s.tiplu +
-    (b.poplu + b.jhiplu) * s.popluJhiplu +
-    (b.alter ? s.alter[Math.min(b.alter, 3) - 1] : 0) +
+    tier(s.marriage, m) +
+    tier(s.tiplu, b.tiplu - m) +
+    tier(s.popluJhiplu, b.poplu - m) +
+    tier(s.popluJhiplu, b.jhiplu - m) +
+    tier(s.alter, b.alter) +
+    tier(s.jokerPoints, b.joker) +
     b.bhoot * (s.bhootPoints ?? 0) +
-    (b.joker ? (s.jokerPoints ?? [0, 0, 0])[Math.min(b.joker, 3) - 1] : 0) +
-    b.marriages * (s.marriage - single) +
     b.tunnels * s.tunnel;
   return b;
 }

@@ -59,7 +59,7 @@ Defaults are configurable per table by the host.
 
 **Declare (win).** After drawing, a player who has seen arranges every card left in their hand, except one discard, into sequences (3+, wilds allowed), trials (3–4 of the same rank in different suits, wilds allowed) or tunnels. A dublee player wins by holding an **8th dublee**.
 
-**Maal points** (seen players only, by default): Tiplu 3, Poplu/Jhiplu 2 each, Alter 5/15/25 for 1/2/3 cards, Jokers 5/15/25 for 1/2/3 cards, Bhoot 5, Marriage (tiplu + poplu + jhiplu) 10 instead of 7, tunnel 5 each (only tunnels shown at the start, by players who saw).
+**Maal points** (seen players only, by default): Tiplu 3/7/15 for 1/2/3 cards, Poplu and Jhiplu 2/5/10 each, Alter 5/15/25, Jokers 5/15/25 for 1/2/3 cards, Bhoot 5, Marriage (tiplu + poplu + jhiplu) 10/30/50 for 1/2/3 sets, replacing those cards' own points, tunnel 5 each (only tunnels shown at the start, by players who saw).
 
 **Round settlement.** Each player's points = N × own maal − total maal (every pair settles the difference). Then every loser pays the winner **3** if they saw the Maal, **10** if not, plus **+5** each if the winner won by dublees. The points add up to 0.
 

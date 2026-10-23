@@ -1,4 +1,6 @@
 export type UnseenRule = "murder" | "kidnap" | "count";
+/** Points for holding 1, 2 or 3 of a kind of maal card. */
+export type Scale = [number, number, number];
 
 export interface Settings {
   rounds: number; // 0 = play until the host ends the match
@@ -8,14 +10,14 @@ export interface Settings {
   seenPoints: number; // winner gets this from each player who saw the maal
   unseenPoints: number; // ...and this from each player who did not
   dubleeBonus: number; // extra from each player when the winner finished by dublees
-  tiplu: number;
-  popluJhiplu: number;
-  alter: [number, number, number]; // 1, 2 or 3 alter cards
-  marriage: number; // tiplu + poplu + jhiplu together
+  tiplu: Scale;
+  popluJhiplu: Scale; // Poplu and Jhiplu are each counted on this scale
+  alter: Scale;
+  marriage: Scale; // 1, 2 or 3 sets of tiplu + poplu + jhiplu
   tunnel: number; // per tunnel shown
   /** Printed Jokers added to the decks (0–3): wild once the maal is seen. */
   jokers: number;
-  jokerPoints: [number, number, number]; // 1, 2 or 3 Jokers
+  jokerPoints: Scale;
   /** Add the printed Bhoot: wild even in pure sets, scores `bhootPoints`, can't be thrown. */
   bhoot: boolean;
   bhootPoints: number;
@@ -34,10 +36,10 @@ export const DEFAULT_SETTINGS: Settings = {
   seenPoints: 3,
   unseenPoints: 10,
   dubleeBonus: 5,
-  tiplu: 3,
-  popluJhiplu: 2,
+  tiplu: [3, 7, 15],
+  popluJhiplu: [2, 5, 10],
   alter: [5, 15, 25],
-  marriage: 10,
+  marriage: [10, 30, 50],
   tunnel: 5,
   jokers: 3,
   jokerPoints: [5, 15, 25],
@@ -97,13 +99,16 @@ const num = (v: unknown, d: number, min = 0, max = 1e6) => {
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : d;
 };
 const int = (v: unknown, d: number, min = 0, max = 1000) => Math.round(num(v, d, min, max));
+/** Older tables stored a flat number per card; they move to the default scale. */
+const scale = (v: unknown, base: unknown, d: Scale): Scale => {
+  const b = Array.isArray(base) && base.length === 3 ? (base as Scale) : d;
+  const a: unknown[] = Array.isArray(v) ? v : b;
+  return [0, 1, 2].map((i) => int(a[i], b[i])) as Scale;
+};
 
 /** Accept untrusted settings from a client and return a clean copy. */
 export function sanitizeSettings(raw: Partial<Settings> | undefined, base: Settings = DEFAULT_SETTINGS): Settings {
   const r = (raw || {}) as Partial<Settings>;
-  const alter = Array.isArray(r.alter) ? r.alter : base.alter;
-  const jokerBase = base.jokerPoints ?? DEFAULT_SETTINGS.jokerPoints;
-  const jokerPoints = Array.isArray(r.jokerPoints) ? r.jokerPoints : jokerBase;
   return {
     rounds: int(r.rounds, base.rounds, 0, 50),
     pointRate: Math.round(num(r.pointRate, base.pointRate, 0, 1e6) * 100) / 100,
@@ -114,13 +119,13 @@ export function sanitizeSettings(raw: Partial<Settings> | undefined, base: Setti
     seenPoints: int(r.seenPoints, base.seenPoints),
     unseenPoints: int(r.unseenPoints, base.unseenPoints),
     dubleeBonus: int(r.dubleeBonus, base.dubleeBonus),
-    tiplu: int(r.tiplu, base.tiplu),
-    popluJhiplu: int(r.popluJhiplu, base.popluJhiplu),
-    alter: [0, 1, 2].map((i) => int(alter[i], base.alter[i])) as [number, number, number],
-    marriage: int(r.marriage, base.marriage),
+    tiplu: scale(r.tiplu, base.tiplu, DEFAULT_SETTINGS.tiplu),
+    popluJhiplu: scale(r.popluJhiplu, base.popluJhiplu, DEFAULT_SETTINGS.popluJhiplu),
+    alter: scale(r.alter, base.alter, DEFAULT_SETTINGS.alter),
+    marriage: scale(r.marriage, base.marriage, DEFAULT_SETTINGS.marriage),
     tunnel: int(r.tunnel, base.tunnel),
     jokers: int(r.jokers, base.jokers ?? 0, 0, 3),
-    jokerPoints: [0, 1, 2].map((i) => int(jokerPoints[i], jokerBase[i])) as [number, number, number],
+    jokerPoints: scale(r.jokerPoints, base.jokerPoints, DEFAULT_SETTINGS.jokerPoints),
     bhoot: typeof r.bhoot === "boolean" ? r.bhoot : (base.bhoot ?? false),
     bhootPoints: int(r.bhootPoints, base.bhootPoints ?? DEFAULT_SETTINGS.bhootPoints),
     dublees: typeof r.dublees === "boolean" ? r.dublees : base.dublees,
