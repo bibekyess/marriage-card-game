@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describePlay, newReaction, playKey } from "../src/client/lib/activity";
+import { describePlay, newReaction, pickedThisTurn, playKey, recentPicks } from "../src/client/lib/activity";
 import { Table } from "../src/server/table";
 import { cardLabel } from "../src/shared/cards";
 import type { Play } from "../src/shared/protocol";
@@ -34,5 +34,30 @@ describe("activity log", () => {
     expect(newReaction(v, [thrown, taken, thrownBack], playKey(taken))).toBeNull();
     // Someone else's card passed on is not your news.
     expect(newReaction(v, [play({ by: me, kind: "stock", card: "9H0", from: other })], null)).toBeNull();
+  });
+
+  it("shows a pick only for the turn it was made", () => {
+    const a = "a";
+    const b = "b";
+    const picked = play({ by: a, kind: "pick", card: "7H0", from: b });
+    expect(pickedThisTurn([picked], 1, a)).toBe("7H0");
+    // Showing sets after picking is still the same turn.
+    expect(pickedThisTurn([picked, play({ by: a, kind: "show", sets: 3, route: "pure" })], 1, a)).toBe("7H0");
+    // Gone once they throw, for other seats, and in a later round.
+    expect(pickedThisTurn([picked, play({ by: a, kind: "throw", card: "2S0" })], 1, a)).toBeNull();
+    expect(pickedThisTurn([picked], 1, b)).toBeNull();
+    expect(pickedThisTurn([picked], 2, a)).toBeNull();
+    // Drawing from the stock is not a pick.
+    expect(pickedThisTurn([play({ by: a, kind: "stock", card: "7H0", from: b })], 1, a)).toBeNull();
+  });
+
+  it("keeps only the last two picks of this round", () => {
+    const pick = (by: string, card: string, round = 1) => play({ by, kind: "pick", card, round });
+    const plays = [pick("a", "AS0", 0), pick("a", "2S0"), pick("b", "3S0"), pick("a", "4S0"), play({ by: "a", kind: "throw", card: "9H0" }), pick("a", "5S0")];
+    expect(recentPicks(plays, 1, "a")).toEqual(["4S0", "5S0"]);
+    expect(recentPicks(plays, 1, "b")).toEqual(["3S0"]);
+    // An earlier round never leaks in.
+    expect(recentPicks(plays.slice(0, 2), 1, "a")).toEqual(["2S0"]);
+    expect(recentPicks([], 1, "a")).toEqual([]);
   });
 });

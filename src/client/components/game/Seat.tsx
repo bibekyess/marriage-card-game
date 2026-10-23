@@ -7,6 +7,7 @@ import { PlayingCard } from "./PlayingCard";
 import { TunnelTag } from "./TunnelTag";
 import { useTheme } from "@/lib/themes";
 import { clock, turnPace } from "@/lib/format";
+import { CardId, cardLabel } from "../../../shared/cards";
 
 interface Props {
   seat: SeatView;
@@ -26,6 +27,8 @@ interface Props {
   align?: "left" | "center" | "right";
   /** Tapping the avatar opens the thrown-cards list. */
   onOpen?: () => void;
+  /** The card they took from the discard pile this turn, shown until they throw. */
+  picked?: CardId | null;
 }
 
 /** How long the player has been on this turn; turns amber, then red, when they're slow. */
@@ -50,7 +53,7 @@ export function TurnClock({ seconds, className }: { seconds: number; className?:
 }
 
 /** An opponent on the rim of the table: avatar, a fan of their face-down cards, name and status. */
-export function Seat({ seat, active, dealer, progress, elapsed = null, maal, size = 46, showSets = true, fanLeft, inline, align = "center", onOpen }: Props) {
+export function Seat({ seat, active, dealer, progress, elapsed = null, maal, size = 46, showSets = true, fanLeft, inline, align = "center", onOpen, picked }: Props) {
   const theme = useTheme();
   // Older cached views may not have `thrown` yet.
   const last = seat.thrown?.at(-1);
@@ -111,6 +114,16 @@ export function Seat({ seat, active, dealer, progress, elapsed = null, maal, siz
             data-testid="seat-last-thrown"
           >
             <PlayingCard id={last.card} width={lastCw} maal={maal} dim={last.taken} className="!shadow-sm" />
+          </div>
+        )}
+        {/* What they just picked up; top-right keeps it clear of the dealer badge and the last throw */}
+        {picked && (
+          <div
+            className="pointer-events-none absolute -right-4 -top-3 motion-safe:animate-card-in"
+            title={`Picked up ${cardLabel(picked)}`}
+          >
+            <PlayingCard id={picked} width={lastCw} maal={maal} className="!shadow-sm ring-2 ring-gold" />
+            <span className="absolute -bottom-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-gold text-[11px] font-extrabold leading-none text-[#2a1d00] shadow">+</span>
           </div>
         )}
       </button>

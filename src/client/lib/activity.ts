@@ -41,3 +41,26 @@ export function newReaction(v: TableView, plays: Play[], lastSeen: string | null
   }
   return null;
 }
+
+/** The card `seatId` took from the discard pile on the turn they're playing now, if any. */
+export function pickedThisTurn(plays: Play[], round: number, seatId: string): CardId | null {
+  for (let i = plays.length - 1; i >= 0; i--) {
+    const p = plays[i];
+    if (p.round !== round || p.by !== seatId) return null;
+    if (p.kind === "pick") return p.card ?? null;
+    // Showing sets doesn't end the turn; anything else means it moved on.
+    if (p.kind !== "show" && p.kind !== "tunnel") return null;
+  }
+  return null;
+}
+
+/** The last `n` cards `seatId` took from the discard pile this round, oldest first. */
+export function recentPicks(plays: Play[], round: number, seatId: string, n = 2): CardId[] {
+  const picks: CardId[] = [];
+  for (let i = plays.length - 1; i >= 0 && picks.length < n; i--) {
+    const p = plays[i];
+    if (p.round !== round) break;
+    if (p.by === seatId && p.kind === "pick" && p.card) picks.unshift(p.card);
+  }
+  return picks;
+}

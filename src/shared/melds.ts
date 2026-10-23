@@ -1,4 +1,4 @@
-import { card, CardId, cardLabel, dubleeKey, faceKey, isBhoot, isPrinted, isWild } from "./cards";
+import { card, CardId, cardLabel, dubleeKey, faceKey, isBhoot, isJoker, isPrinted, isWild } from "./cards";
 
 /** The Bhoot is too valuable to give away: it can never be thrown. */
 export const BHOOT_NO_THROW = "That's the Bhoot card, don't throw it.";
@@ -16,9 +16,10 @@ function fitsRun(ranks: number[], len: number): boolean {
   return false;
 }
 
-/** Three identical cards; the Bhoot may stand in for one of them. */
+/** Three identical cards; the Bhoot may stand in for one of them. Three Jokers are a tunnel too. */
 export function isTunnel(ids: CardId[]): boolean {
   if (ids.length !== 3 || new Set(ids).size !== 3) return false;
+  if (ids.every(isJoker)) return true;
   const nat = ids.filter((x) => !isBhoot(x));
   if (nat.some(isPrinted)) return false;
   return nat.every((x) => faceKey(x) === faceKey(nat[0]));
@@ -231,7 +232,10 @@ export function findShow(hand: CardId[], selected: CardId[] = [], want = 3): Car
 /** Every natural tunnel (three identical cards) in a hand: the ones that can be shown at the start. */
 export function findTunnels(hand: CardId[]): CardId[][] {
   const by = new Map<string, CardId[]>();
-  for (const c of hand) if (!isPrinted(c)) by.set(faceKey(c), [...(by.get(faceKey(c)) || []), c]);
+  for (const c of hand) {
+    const k = isJoker(c) ? "JK" : isPrinted(c) ? null : faceKey(c);
+    if (k) by.set(k, [...(by.get(k) || []), c]);
+  }
   return [...by.values()].filter((x) => x.length >= 3).map((x) => x.slice(0, 3));
 }
 

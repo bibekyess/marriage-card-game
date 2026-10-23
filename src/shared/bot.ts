@@ -47,7 +47,7 @@ export function cardValues(hand: CardId[], maal: CardId | null, route: Route | n
     for (const pair of findDublees(hand)) pair.forEach((c) => val.set(c, 50));
     for (const c of hand) {
       const k = maalKind(c, maal);
-      if (k && k !== "plain" && k !== "joker") val.set(c, val.get(c)! + 5);
+      if (k && k !== "plain") val.set(c, val.get(c)! + 5);
       // A lone printed card is half a dublee with the next one.
       else if (isPrinted(c) && val.get(c) === 0) val.set(c, 3);
     }

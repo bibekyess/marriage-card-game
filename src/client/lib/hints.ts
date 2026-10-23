@@ -17,7 +17,7 @@ export const MAAL_NAME: Record<MaalKind, string> = {
   bhoot: "Bhoot",
 };
 /** Wild cards that score nothing get a silver star; point cards gold. */
-export const isPointless = (k: MaalKind) => k === "plain" || k === "joker";
+export const isPointless = (k: MaalKind) => k === "plain";
 
 export interface Hints {
   myIndex: number;

@@ -44,7 +44,8 @@ export function RulesSheet({ open, onOpenChange, settings = DEFAULT_SETTINGS }: 
             <Example title="Tunnel" text="Three identical cards." cards={["9C0", "9C1", "9C2"]} />
             <p className="text-muted-foreground">
               Holding tunnels when you're dealt? Show them on your first turn, before you draw. Each one counts as one of your 3 sets
-              and scores {s.tunnel} points once you see the maal. Tunnels you don't show at the start score nothing.
+              and scores {s.tunnel} points once you see the maal. If the maal turns it into an alter tunnela it scores {s.alterTunnel}, a poplu or
+              jhiplu tunnela {s.popluTunnel}{s.jokers >= 3 ? `, and three Jokers ${s.jokerTunnel}` : ""}. Tunnels you don't show at the start score nothing.
             </p>
             {s.dublees && <Example title="Dublee" text="Two identical cards." cards={["KS0", "KS1"]} />}
           </section>
@@ -55,18 +56,20 @@ export function RulesSheet({ open, onOpenChange, settings = DEFAULT_SETTINGS }: 
               <b className="text-gold">gold ★</b> scores points, <b className="text-zinc-300">silver ★</b> is wild but scores nothing.
             </p>
             <ul className="grid grid-cols-2 gap-2 text-xs">
-              <li className="rounded-lg bg-black/20 p-2"><b>★ Tiplu</b> — the maal card ({s.tiplu} pts)</li>
-              <li className="rounded-lg bg-black/20 p-2"><b>★ Poplu</b> — one above, same suit ({s.popluJhiplu})</li>
-              <li className="rounded-lg bg-black/20 p-2"><b>★ Jhiplu</b> — one below, same suit ({s.popluJhiplu})</li>
+              <li className="rounded-lg bg-black/20 p-2"><b>★ Tiplu</b> — the maal card ({s.tiplu.join("/")} pts)</li>
+              <li className="rounded-lg bg-black/20 p-2"><b>★ Poplu</b> — one above, same suit ({s.popluJhiplu.join("/")})</li>
+              <li className="rounded-lg bg-black/20 p-2"><b>★ Jhiplu</b> — one below, same suit ({s.popluJhiplu.join("/")})</li>
               <li className="rounded-lg bg-black/20 p-2"><b>★ Alter</b> — same rank &amp; colour ({s.alter.join("/")})</li>
-              <li className="col-span-2 rounded-lg bg-black/20 p-2"><b className="text-zinc-300">★ Plain wild</b> — same rank, other colour (wild, no points). Tiplu + Poplu + Jhiplu = <b>Marriage</b> ({s.marriage}).</li>
+              <li className="col-span-2 rounded-lg bg-black/20 p-2"><b className="text-zinc-300">★ Plain wild</b> — same rank, other colour (wild, no points). Tiplu + Poplu + Jhiplu = <b>Marriage</b> ({s.marriage.slice(0, 2).join("/")} for 1/2). Shown as a pure set to see the maal, it's a{" "}
+                <b>Pre-Maal marriage</b> ({s.preMaalMarriage.slice(0, 2).join("/")}).</li>
             </ul>
             {(s.jokers > 0 || s.bhoot) && (
               <>
                 <p className="text-muted-foreground">
                   {s.jokers > 0 && (
                     <>
-                      This table adds {s.jokers === 1 ? "a printed Joker" : `${s.jokers} printed Jokers`}: wild once you've seen the maal, no points.{" "}
+                      This table adds {s.jokers === 1 ? "a printed Joker" : `${s.jokers} printed Jokers`}: wild once you've seen the maal, worth{" "}
+                      {s.jokerPoints.slice(0, s.jokers).join("/")} for {s.jokers === 1 ? "it" : [1, 2, 3].slice(0, s.jokers).join("/") + " Jokers"}.{" "}
                     </>
                   )}
                   {s.bhoot && (

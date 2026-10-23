@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useId } from "react";
 import { card, CardId, isRed, maalKind, PrintedKind, printedKind, rankLabel, SUIT_NAME, SUIT_SYMBOL } from "../../../shared/cards";
 import { cn } from "@/lib/utils";
 import { isPointless, MAAL_NAME, MAAL_TAG } from "@/lib/hints";
@@ -16,11 +16,29 @@ interface Props {
   style?: React.CSSProperties;
 }
 
+/**
+ * Each emblem carries its own gold gradient. Borrowing one from a shared hidden SVG made
+ * iOS Safari drop the fill for a frame whenever a card repainted, so face cards flickered.
+ */
+function useGold(): [string, React.ReactNode] {
+  const id = "mg-gold" + useId().replace(/:/g, "");
+  const defs = (
+    <defs>
+      <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#ffd77a" />
+        <stop offset="1" stopColor="#c98a12" />
+      </linearGradient>
+    </defs>
+  );
+  return [`url(#${id})`, defs];
+}
+
 /** Court-card emblems: King's crown, Queen's tiara, Jack's fleur. Drawn in gold with a suit-coloured jewel. */
 function CourtEmblem({ rank, color }: { rank: number; color: string }) {
-  const gold = "url(#mg-gold)";
+  const [gold, defs] = useGold();
   return (
     <svg viewBox="0 0 40 40" className="h-[80%] w-[80%]" aria-hidden>
+      {defs}
       {rank === 13 && (
         <>
           <path d="M6 30 L4 12 L13 20 L20 7 L27 20 L36 12 L34 30 Z" fill={gold} stroke="#8a5a00" strokeWidth="1" strokeLinejoin="round" />
@@ -58,9 +76,10 @@ function CourtEmblem({ rank, color }: { rank: number; color: string }) {
 
 /** Printed card art: a jester's hat for the Joker, a little ghost for the Bhoot. */
 function PrintedEmblem({ kind }: { kind: PrintedKind }) {
-  const gold = "url(#mg-gold)";
+  const [gold, defs] = useGold();
   return (
     <svg viewBox="0 0 40 40" className="h-full w-full" aria-hidden>
+      {defs}
       {kind === "joker" ? (
         <>
           {/* Floppy three-horned cap in red and black, so it never reads as a King's crown. */}

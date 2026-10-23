@@ -8,7 +8,7 @@ import { Piles } from "@/components/game/Piles";
 import { Seat, TurnClock } from "@/components/game/Seat";
 import { ThrownDialog } from "@/components/game/ThrownDialog";
 import { ActivityPanel, ActivitySheet } from "@/components/game/ActivityLog";
-import { newReaction, playKey } from "@/lib/activity";
+import { newReaction, pickedThisTurn, playKey } from "@/lib/activity";
 import { PlayingCard } from "@/components/game/PlayingCard";
 import { TunnelTag } from "@/components/game/TunnelTag";
 import { Avatar } from "@/components/game/Avatar";
@@ -515,6 +515,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
                   align={spot[0] < 35 ? "left" : spot[0] > 65 ? "right" : "center"}
                   inline={landscape && vp.h < 520 && spot[1] < 10}
                   onOpen={() => setThrownFor(v.seats[idx].id)}
+                  picked={playing && v.turn === idx ? pickedThisTurn(v.plays ?? [], v.round, v.seats[idx].id) : null}
                 />
               </div>
             );
