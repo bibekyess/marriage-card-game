@@ -160,6 +160,23 @@ export function RulesForm({ value: s, onChange, disabled }: Props) {
         <Row title="Tunnel" hint="Each tunnel shown at the start (needs maal seen).">
           <Num value={s.tunnel} disabled={disabled} onChange={(v) => up("tunnel", v)} />
         </Row>
+        <Row title="Jokers" hint="For 1 / 2 / 3 printed Jokers.">
+          <div className="flex gap-1.5">
+            {[0, 1, 2].map((i) => (
+              <Num
+                key={i}
+                w="w-14"
+                value={s.jokerPoints[i]}
+                disabled={disabled || !s.jokers}
+                onChange={(v) => {
+                  const a = [...s.jokerPoints] as Settings["jokerPoints"];
+                  a[i] = v;
+                  up("jokerPoints", a);
+                }}
+              />
+            ))}
+          </div>
+        </Row>
         <Row title="Bhoot" hint="The printed Bhoot card.">
           <Num value={s.bhootPoints} disabled={disabled || !s.bhoot} onChange={(v) => up("bhootPoints", v)} />
         </Row>
@@ -181,12 +198,12 @@ export function RulesForm({ value: s, onChange, disabled }: Props) {
             ]}
           />
         </Row>
-        <Row title="Printed Jokers" hint="Wild once you've seen the maal. No points.">
+        <Row title="Printed Jokers" hint="Wild once you've seen the maal. Score like alters.">
           <Segmented
             value={s.jokers}
             disabled={disabled}
             onChange={(v) => up("jokers", v)}
-            options={[0, 1, 2].map((v) => ({ v, label: String(v) }))}
+            options={[0, 1, 2, 3].map((v) => ({ v, label: String(v) }))}
           />
         </Row>
         <Row title="Bhoot" hint="Wild even in pure sets, scores points, can't be thrown.">

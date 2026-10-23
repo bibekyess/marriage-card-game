@@ -687,7 +687,7 @@ export class Table {
     const points = Object.fromEntries(this.s.seats.map((x) => [x.id, 0]));
     const seen = Object.fromEntries(this.s.seats.map((x) => [x.id, !!g.seen[x.id]]));
     this.s.rounds.push({ round: this.s.round, dealerId: this.s.seats[this.s.dealer].id, winnerId: "", route: "pure", points, seen, maal: g.maal });
-    const empty = { tiplu: 0, poplu: 0, jhiplu: 0, alter: 0, bhoot: 0, marriages: 0, tunnels: 0, points: 0 };
+    const empty = { tiplu: 0, poplu: 0, jhiplu: 0, alter: 0, bhoot: 0, joker: 0, marriages: 0, tunnels: 0, points: 0 };
     this.s.reveal = {
       winnerId: "",
       route: "pure",

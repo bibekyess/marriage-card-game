@@ -541,9 +541,9 @@ describe("printed Jokers and the Bhoot", () => {
 
   it("adds them to the deck from the settings", () => {
     expect(fullDeck()).toHaveLength(156);
-    const deck = fullDeck({ jokers: 2, bhoot: true });
-    expect(deck).toHaveLength(159);
-    expect(deck).toEqual(expect.arrayContaining(["JK0", "JK1", "BH0"]));
+    const deck = fullDeck({ jokers: 3, bhoot: true });
+    expect(deck).toHaveLength(160);
+    expect(deck).toEqual(expect.arrayContaining(["JK0", "JK1", "JK2", "BH0"]));
     expect(deck.every(isCardId)).toBe(true);
     expect(cardLabel("BH0")).toBe("Bhoot");
     expect(cardLabel("JK1")).toBe("Joker");
@@ -584,10 +584,16 @@ describe("printed Jokers and the Bhoot", () => {
     expect(completesPure(["JK0", "4H0"], "BH0", true)).toBe(true);
   });
 
-  it("scores the Bhoot and not the Jokers, and rounds still sum to 0", () => {
+  it("scores Jokers like alters and the Bhoot on its own, and rounds still sum to 0", () => {
+    expect(maalPoints(["JK0", "4H0"], [], "7D0", S).points).toBe(5);
+    expect(maalPoints(["JK0", "JK1"], [], "7D0", S).points).toBe(15);
+    expect(maalPoints(["JK0", "JK1", "JK2"], [], "7D0", S).points).toBe(25);
     const b = maalPoints(["BH0", "JK0", "JK1", "4H0"], [], "7D0", S);
     expect(b.bhoot).toBe(1);
-    expect(b.points).toBe(S.bhootPoints);
+    expect(b.joker).toBe(2);
+    expect(b.points).toBe(5 + 15);
+    // A tunnela shown at the start adds 5 on top.
+    expect(maalPoints(["9C0", "9C1", "9C2", "JK0"], [["9C0", "9C1", "9C2"]], "7D0", S).points).toBe(5 + 5);
     const rows = scoreRound(
       [
         { id: "w", seen: true, cards: ["JK0"], shown: [] },
@@ -599,6 +605,7 @@ describe("printed Jokers and the Bhoot", () => {
       S,
       false,
     );
+    expect(rows.find((r) => r.id === "w")!.maal).toBe(5);
     expect(rows.find((r) => r.id === "x")!.maal).toBe(5);
     expect(rows.reduce((a, r) => a + r.points, 0)).toBe(0);
   });
@@ -636,7 +643,7 @@ describe("printed Jokers and the Bhoot", () => {
       const g = table.s.game!;
       expect(g.discard).toHaveLength(1);
       expect(isPrinted(g.discard[0])).toBe(false);
-      expect(g.stock.length + g.discard.length + 1 + Object.values(g.hands).flat().length).toBe(159);
+      expect(g.stock.length + g.discard.length + 1 + Object.values(g.hands).flat().length).toBe(160);
     }
   });
 
@@ -649,7 +656,7 @@ describe("printed Jokers and the Bhoot", () => {
     const loaded = new Table(saved);
     expect(loaded.s.settings.jokers).toBe(0);
     expect(loaded.s.settings.bhoot).toBe(false);
-    expect(Table.create("NEW", "Host", {}, 1).table.s.settings).toMatchObject({ jokers: 2, bhoot: true, bhootPoints: 5 });
+    expect(Table.create("NEW", "Host", {}, 1).table.s.settings).toMatchObject({ jokers: 3, jokerPoints: [5, 15, 25], bhoot: true, bhootPoints: 5 });
   });
 });
 

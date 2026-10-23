@@ -19,10 +19,10 @@ export interface Card {
 }
 
 // ---------- printed cards ----------
-// On top of the three decks a table can add up to two printed Jokers and one Bhoot.
+// On top of the three decks a table can add up to three printed Jokers and one Bhoot.
 // They have no rank or suit, so `card()` doesn't accept them: check `isPrinted` first.
 
-export const JOKER_IDS: readonly CardId[] = ["JK0", "JK1"];
+export const JOKER_IDS: readonly CardId[] = ["JK0", "JK1", "JK2"];
 export const BHOOT_ID: CardId = "BH0";
 export type PrintedKind = "joker" | "bhoot";
 
@@ -138,7 +138,7 @@ const prevRank = (r: number) => (r === 1 ? 13 : r - 1);
  * - poplu / jhiplu: same suit, one rank above / below
  * - alter: same rank, the other suit of the same colour
  * - plain: same rank, opposite colour (wild, but scores no points)
- * - joker: a printed Joker (wild once the maal is seen, no points)
+ * - joker: a printed Joker (wild once the maal is seen, scores like alters)
  * - bhoot: the printed Bhoot, wild even before seeing (it can fill a pure set) and scores points
  */
 export function maalKind(id: CardId, maal: CardId | null | undefined): MaalKind | null {

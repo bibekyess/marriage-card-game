@@ -66,7 +66,8 @@ export function RulesSheet({ open, onOpenChange, settings = DEFAULT_SETTINGS }: 
                 <p className="text-muted-foreground">
                   {s.jokers > 0 && (
                     <>
-                      This table adds {s.jokers === 1 ? "a printed Joker" : `${s.jokers} printed Jokers`}: wild once you've seen the maal, no points.{" "}
+                      This table adds {s.jokers === 1 ? "a printed Joker" : `${s.jokers} printed Jokers`}: wild once you've seen the maal, worth{" "}
+                      {s.jokerPoints.slice(0, s.jokers).join("/")} for {s.jokers === 1 ? "it" : [1, 2, 3].slice(0, s.jokers).join("/") + " Jokers"}.{" "}
                     </>
                   )}
                   {s.bhoot && (

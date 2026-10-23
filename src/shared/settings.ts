@@ -13,8 +13,9 @@ export interface Settings {
   alter: [number, number, number]; // 1, 2 or 3 alter cards
   marriage: number; // tiplu + poplu + jhiplu together
   tunnel: number; // per tunnel shown
-  /** Printed Jokers added to the decks (0–2): wild once the maal is seen, no points. */
+  /** Printed Jokers added to the decks (0–3): wild once the maal is seen. */
   jokers: number;
+  jokerPoints: [number, number, number]; // 1, 2 or 3 Jokers
   /** Add the printed Bhoot: wild even in pure sets, scores `bhootPoints`, can't be thrown. */
   bhoot: boolean;
   bhootPoints: number;
@@ -38,7 +39,8 @@ export const DEFAULT_SETTINGS: Settings = {
   alter: [5, 15, 25],
   marriage: 10,
   tunnel: 5,
-  jokers: 2,
+  jokers: 3,
+  jokerPoints: [5, 15, 25],
   bhoot: true,
   bhootPoints: 5,
   dublees: true,
@@ -100,6 +102,8 @@ const int = (v: unknown, d: number, min = 0, max = 1000) => Math.round(num(v, d,
 export function sanitizeSettings(raw: Partial<Settings> | undefined, base: Settings = DEFAULT_SETTINGS): Settings {
   const r = (raw || {}) as Partial<Settings>;
   const alter = Array.isArray(r.alter) ? r.alter : base.alter;
+  const jokerBase = base.jokerPoints ?? DEFAULT_SETTINGS.jokerPoints;
+  const jokerPoints = Array.isArray(r.jokerPoints) ? r.jokerPoints : jokerBase;
   return {
     rounds: int(r.rounds, base.rounds, 0, 50),
     pointRate: Math.round(num(r.pointRate, base.pointRate, 0, 1e6) * 100) / 100,
@@ -115,7 +119,8 @@ export function sanitizeSettings(raw: Partial<Settings> | undefined, base: Setti
     alter: [0, 1, 2].map((i) => int(alter[i], base.alter[i])) as [number, number, number],
     marriage: int(r.marriage, base.marriage),
     tunnel: int(r.tunnel, base.tunnel),
-    jokers: int(r.jokers, base.jokers ?? 0, 0, 2),
+    jokers: int(r.jokers, base.jokers ?? 0, 0, 3),
+    jokerPoints: [0, 1, 2].map((i) => int(jokerPoints[i], jokerBase[i])) as [number, number, number],
     bhoot: typeof r.bhoot === "boolean" ? r.bhoot : (base.bhoot ?? false),
     bhootPoints: int(r.bhootPoints, base.bhootPoints ?? DEFAULT_SETTINGS.bhootPoints),
     dublees: typeof r.dublees === "boolean" ? r.dublees : base.dublees,

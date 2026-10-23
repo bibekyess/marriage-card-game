@@ -55,11 +55,11 @@ Defaults are configurable per table by the host.
 
 **Wild cards** (once you've seen): Tiplu (same rank and suit), Poplu (+1, same suit), Jhiplu (−1, same suit), Alter (same rank, same colour, other suit), and Plain wilds (same rank, opposite colour). All of them are wild, but plain wilds score nothing.
 
-**Printed cards** (settings, default 2 Jokers + 1 Bhoot, 159 cards). Jokers are dead until you've seen, then wild; no points. The Bhoot is wild from the start: it can fill a pure sequence or tunnel to see the maal (not a tunnela shown before the first draw), still counts as pure, scores 5, and can never be thrown. Any two printed cards make a dublee. The maal and the first face-up card are never printed cards.
+**Printed cards** (settings, default 3 Jokers + 1 Bhoot, 160 cards). Jokers are dead until you've seen, then wild; they score 5/15/25 for 1/2/3 Jokers, like alters. The Bhoot is wild from the start: it can fill a pure sequence or tunnel to see the maal (not a tunnela shown before the first draw), still counts as pure, scores 5, and can never be thrown. Any two printed cards make a dublee. The maal and the first face-up card are never printed cards.
 
 **Declare (win).** After drawing, a player who has seen arranges every card left in their hand, except one discard, into sequences (3+, wilds allowed), trials (3–4 of the same rank in different suits, wilds allowed) or tunnels. A dublee player wins by holding an **8th dublee**.
 
-**Maal points** (seen players only, by default): Tiplu 3, Poplu/Jhiplu 2 each, Alter 5/15/25 for 1/2/3 cards, Marriage (tiplu + poplu + jhiplu) 10 instead of 7, tunnel 5 each (only tunnels shown at the start, by players who saw).
+**Maal points** (seen players only, by default): Tiplu 3, Poplu/Jhiplu 2 each, Alter 5/15/25 for 1/2/3 cards, Jokers 5/15/25 for 1/2/3 cards, Bhoot 5, Marriage (tiplu + poplu + jhiplu) 10 instead of 7, tunnel 5 each (only tunnels shown at the start, by players who saw).
 
 **Round settlement.** Each player's points = N × own maal − total maal (every pair settles the difference). Then every loser pays the winner **3** if they saw the Maal, **10** if not, plus **+5** each if the winner won by dublees. The points add up to 0.
 
