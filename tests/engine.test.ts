@@ -112,6 +112,52 @@ describe("scoring", () => {
     expect(pts(["7D0", "7D1", "8D0", "8D1", "6D0"])).toBe(10 + 3 + 2);
   });
 
+  it("scores Pre-Maal marriages 15/45 only when every marriage was shown", () => {
+    const maal = "7D0";
+    const one = ["6D0", "7D1", "8D0"];
+    const two = ["6D1", "7D2", "8D1"];
+    const pts = (cards: string[], pre: string[][]) => maalPoints(cards, [], maal, S, pre).points;
+    expect(pts(one, [one])).toBe(15);
+    expect(pts([...one, ...two], [one, two])).toBe(45);
+    // One shown, one made in hand: a normal double marriage.
+    expect(pts([...one, ...two], [one])).toBe(30);
+    // The Bhoot never makes a marriage: the poplu and jhiplu count on their own.
+    expect(pts(["6D0", "BH0", "8D0"], [["6D0", "BH0", "8D0"]])).toBe(2 + 5 + 2);
+    expect(maalPoints(one, [], maal, S, [one]).preMaal).toBe(1);
+  });
+
+  it("scores alter, poplu/jhiplu and Joker tunnelas in place of their cards", () => {
+    const maal = "7D0"; // alter 7H, poplu 8D, jhiplu 6D
+    const pts = (t: string[]) => maalPoints(t, [t], maal, S).points;
+    expect(pts(["7H0", "7H1", "7H2"])).toBe(35);
+    expect(pts(["8D0", "8D1", "8D2"])).toBe(20);
+    expect(pts(["6D0", "6D1", "6D2"])).toBe(20);
+    expect(pts(["JK0", "JK1", "JK2"])).toBe(35);
+    expect(pts(["9C0", "9C1", "9C2"])).toBe(5);
+    // Not shown at the start: the cards score on their own scales.
+    expect(maalPoints(["7H0", "7H1", "7H2"], [], maal, S).points).toBe(25);
+    // Joker + Joker + Bhoot is no tunnel, just a Joker pair and the Bhoot.
+    expect(isTunnel(["JK0", "JK1", "BH0"])).toBe(false);
+    expect(maalPoints(["JK0", "JK1", "BH0"], [["JK0", "JK1", "BH0"]], maal, S).points).toBe(15 + 5);
+    expect(findTunnels(["JK0", "4H0", "JK1", "JK2"])).toEqual([["JK0", "JK1", "JK2"]]);
+  });
+
+  it("keeps round points summing to 0 with Pre-Maal marriages and tunnelas", () => {
+    const rows = scoreRound(
+      [
+        { id: "a", seen: true, cards: ["6D0", "7D1", "8D0"], shown: [], preMaal: [["6D0", "7D1", "8D0"]] },
+        { id: "b", seen: true, cards: ["7H0", "7H1", "7H2"], shown: [["7H0", "7H1", "7H2"]] },
+        { id: "c", seen: false, cards: ["JK0", "JK1", "JK2"], shown: [] },
+      ],
+      "a",
+      "7D0",
+      S,
+      false,
+    );
+    expect(rows.map((r) => r.maal)).toEqual([15, 35, 0]);
+    expect(rows.reduce((a, r) => a + r.points, 0)).toBe(0);
+  });
+
   it("moves older flat tiplu/poplu/marriage settings to the scales", () => {
     const old = sanitizeSettings({ tiplu: 3, popluJhiplu: 2, marriage: 10 } as unknown as Partial<Settings>, {
       ...S,
@@ -310,6 +356,20 @@ describe("review fixes", () => {
     g.hands[host].push("KC0");
     expect(table.view(host).canDeclare).toBe(false);
     expect(() => table.declare(host)).toThrow(/complete sets/);
+  });
+
+  it("scores a marriage shown to see the maal as Pre-Maal", () => {
+    const { table, host } = twoPlayer();
+    const g = table.s.game!;
+    g.maal = "2D0"; // tiplu 2D, poplu 3D, jhiplu AD
+    g.seen[host] = "pure";
+    g.shown[host] = [["AD0", "2D1", "3D0"], ["7S0", "8S0", "9S2"], ["JH0", "QH0", "KH0"]];
+    g.hands[host] = ["4H0", "5H0", "6H0", "KC1"];
+    g.phase = "discard";
+    table.declare(host);
+    const me = table.s.reveal!.players.find((p) => p.id === host)!;
+    expect(me.breakdown.preMaal).toBe(1);
+    expect(me.breakdown.points).toBe(15);
   });
 
   it("scores a winner's tunnel no matter how the hand is arranged", () => {

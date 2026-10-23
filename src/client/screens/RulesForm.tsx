@@ -161,11 +161,23 @@ export function RulesForm({ value: s, onChange, disabled }: Props) {
         <Row title="Marriage" hint="For 1 / 2 / 3 sets of Tiplu + Poplu + Jhiplu.">
           <ScaleNums value={s.marriage} disabled={disabled} onChange={(v) => up("marriage", v)} />
         </Row>
+        <Row title="Pre-Maal marriage" hint="Instead, when every marriage was shown to see the maal.">
+          <ScaleNums value={s.preMaalMarriage} disabled={disabled} onChange={(v) => up("preMaalMarriage", v)} />
+        </Row>
         <Row title="Alter" hint="For 1 / 2 / 3 alter cards.">
           <ScaleNums value={s.alter} disabled={disabled} onChange={(v) => up("alter", v)} />
         </Row>
         <Row title="Tunnel" hint="Each tunnel shown at the start (needs maal seen).">
           <Num value={s.tunnel} disabled={disabled} onChange={(v) => up("tunnel", v)} />
+        </Row>
+        <Row title="Alter tunnela" hint="In total, instead of tunnel + alter points.">
+          <Num value={s.alterTunnel} disabled={disabled} onChange={(v) => up("alterTunnel", v)} />
+        </Row>
+        <Row title="Poplu / Jhiplu tunnela" hint="In total, instead of tunnel + poplu/jhiplu points.">
+          <Num value={s.popluTunnel} disabled={disabled} onChange={(v) => up("popluTunnel", v)} />
+        </Row>
+        <Row title="Joker tunnela" hint="Three printed Jokers, in total.">
+          <Num value={s.jokerTunnel} disabled={disabled || s.jokers < 3} onChange={(v) => up("jokerTunnel", v)} />
         </Row>
         <Row title="Jokers" hint="For 1 / 2 / 3 printed Jokers.">
           <ScaleNums value={s.jokerPoints} disabled={disabled || !s.jokers} onChange={(v) => up("jokerPoints", v)} />

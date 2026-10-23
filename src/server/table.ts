@@ -637,7 +637,8 @@ export class Table {
       const hand = g.hands[seat.id];
       const shown = g.shown[seat.id] || [];
       const tunnels = g.seen[seat.id] ? g.opened?.[seat.id] ?? [] : [];
-      return { id: seat.id, seen: !!g.seen[seat.id], cards: [...hand, ...shown.flat()], shown: tunnels };
+      const preMaal = g.seen[seat.id] === "pure" ? shown : [];
+      return { id: seat.id, seen: !!g.seen[seat.id], cards: [...hand, ...shown.flat()], shown: tunnels, preMaal };
     });
     const rows = scoreRound(inputs, winnerId, g.maal, this.s.settings, route === "dublee");
     const points: Record<string, number> = {};
@@ -687,7 +688,7 @@ export class Table {
     const points = Object.fromEntries(this.s.seats.map((x) => [x.id, 0]));
     const seen = Object.fromEntries(this.s.seats.map((x) => [x.id, !!g.seen[x.id]]));
     this.s.rounds.push({ round: this.s.round, dealerId: this.s.seats[this.s.dealer].id, winnerId: "", route: "pure", points, seen, maal: g.maal });
-    const empty = { tiplu: 0, poplu: 0, jhiplu: 0, alter: 0, bhoot: 0, joker: 0, marriages: 0, tunnels: 0, points: 0 };
+    const empty = { tiplu: 0, poplu: 0, jhiplu: 0, alter: 0, bhoot: 0, joker: 0, marriages: 0, preMaal: 0, tunnels: 0, points: 0 };
     this.s.reveal = {
       winnerId: "",
       route: "pure",
@@ -811,7 +812,8 @@ export class Table {
     for (const f of all) {
       const rest = hand.filter((c) => c !== f.discard);
       // Scored exactly as finishRound will score it.
-      const pts = maalPoints([...rest, ...shown.flat()], tunnels, g.maal, this.s.settings).points;
+      const preMaal = g.seen[id] === "pure" ? shown : [];
+      const pts = maalPoints([...rest, ...shown.flat()], tunnels, g.maal, this.s.settings, preMaal).points;
       if (pts > bestPts) {
         bestPts = pts;
         best = f;

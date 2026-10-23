@@ -14,7 +14,13 @@ export interface Settings {
   popluJhiplu: Scale; // Poplu and Jhiplu are each counted on this scale
   alter: Scale;
   marriage: Scale; // 1, 2 or 3 sets of tiplu + poplu + jhiplu
+  /** Used instead of `marriage` when every marriage was a pure set shown to see the maal. */
+  preMaalMarriage: Scale;
   tunnel: number; // per tunnel shown
+  /** Totals for a tunnela of alters, poplus/jhiplus or Jokers, in place of `tunnel` + those cards. */
+  alterTunnel: number;
+  popluTunnel: number;
+  jokerTunnel: number;
   /** Printed Jokers added to the decks (0–3): wild once the maal is seen. */
   jokers: number;
   jokerPoints: Scale;
@@ -40,7 +46,11 @@ export const DEFAULT_SETTINGS: Settings = {
   popluJhiplu: [2, 5, 10],
   alter: [5, 15, 25],
   marriage: [10, 30, 50],
+  preMaalMarriage: [15, 45, 75],
   tunnel: 5,
+  alterTunnel: 35,
+  popluTunnel: 20,
+  jokerTunnel: 35,
   jokers: 3,
   jokerPoints: [5, 15, 25],
   bhoot: true,
@@ -123,7 +133,11 @@ export function sanitizeSettings(raw: Partial<Settings> | undefined, base: Setti
     popluJhiplu: scale(r.popluJhiplu, base.popluJhiplu, DEFAULT_SETTINGS.popluJhiplu),
     alter: scale(r.alter, base.alter, DEFAULT_SETTINGS.alter),
     marriage: scale(r.marriage, base.marriage, DEFAULT_SETTINGS.marriage),
+    preMaalMarriage: scale(r.preMaalMarriage, base.preMaalMarriage, DEFAULT_SETTINGS.preMaalMarriage),
     tunnel: int(r.tunnel, base.tunnel),
+    alterTunnel: int(r.alterTunnel, base.alterTunnel ?? DEFAULT_SETTINGS.alterTunnel),
+    popluTunnel: int(r.popluTunnel, base.popluTunnel ?? DEFAULT_SETTINGS.popluTunnel),
+    jokerTunnel: int(r.jokerTunnel, base.jokerTunnel ?? DEFAULT_SETTINGS.jokerTunnel),
     jokers: int(r.jokers, base.jokers ?? 0, 0, 3),
     jokerPoints: scale(r.jokerPoints, base.jokerPoints, DEFAULT_SETTINGS.jokerPoints),
     bhoot: typeof r.bhoot === "boolean" ? r.bhoot : (base.bhoot ?? false),
