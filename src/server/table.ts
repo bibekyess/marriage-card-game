@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { BotView, choosePlay, chooseDiscard, chooseDraw } from "../shared/bot";
-import { cardLabel, CardId, fullDeck, HAND_SIZE, isBhoot, isCardId, isPrinted, shuffle } from "../shared/cards";
+import { cardLabel, CardId, fullDeck, HAND_SIZE, isBhoot, isCardId, isPrinted, isWild, shuffle } from "../shared/cards";
 import {
   allDubleeFinishes,
   allFinishes,
@@ -797,8 +797,9 @@ export class Table {
   // ---------- views ----------
 
   /**
-   * Of all the cards that could be thrown to finish, the one that keeps the most maal points,
-   * so the result never depends on how the hand happens to be ordered.
+   * Of all the cards that could be thrown to finish, the one that keeps the most maal points
+   * (on a tie, a natural card rather than a wild one), so the result never depends on how the
+   * hand happens to be ordered.
    */
   private bestFinish(id: string): Finish | null {
     const g = this.g;
@@ -814,7 +815,7 @@ export class Table {
       // Scored exactly as finishRound will score it.
       const preMaal = g.seen[id] === "pure" ? shown : [];
       const pts = maalPoints([...rest, ...shown.flat()], tunnels, g.maal, this.s.settings, preMaal).points;
-      if (pts > bestPts) {
+      if (pts > bestPts || (pts === bestPts && isWild(best!.discard, g.maal) && !isWild(f.discard, g.maal))) {
         bestPts = pts;
         best = f;
       }

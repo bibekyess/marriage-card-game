@@ -717,6 +717,27 @@ describe("printed Jokers and the Bhoot", () => {
     expect(checkFinish(hand, "2C0", "pure", SETS.concat([["4H0", "5H0", "6H0"]]), "BH0")).toMatch(/Bhoot/);
   });
 
+  it("finishes by throwing a natural card rather than an equally scored Joker", () => {
+    const sets = [["9C0", "9C1", "9C2"], ["9H0", "9D0", "9S0"], ["4H0", "5H0", "6H0"], ["KC0", "KD0", "KS0"]];
+    for (const jokerPoints of [[0, 0, 0], [5, 15, 25]] as [number, number, number][]) {
+      const { table, seat } = Table.create("JKF", "Host", { jokerPoints }, 0);
+      table.join("Guest");
+      table.start(seat.id);
+      const g = table.s.game!;
+      g.turn = table.s.seats.findIndex((x) => x.id === seat.id);
+      g.maal = "2S0";
+      g.seen[seat.id] = "pure";
+      g.shown[seat.id] = SETS;
+      // The Joker comes first, so hand order alone would throw it.
+      g.hands[seat.id] = ["JK0", ...sets.flat()];
+      g.phase = "discard";
+      g.picked = null;
+      expect(table.view(seat.id).finishDiscard).not.toBe("JK0");
+      table.declare(seat.id);
+      expect(table.s.reveal!.discard).not.toBe("JK0");
+    }
+  });
+
   it("never picks a printed card as the maal", () => {
     for (let i = 0; i < 40; i++) {
       const { table } = Table.create("MAAL", "Host", {}, 1);

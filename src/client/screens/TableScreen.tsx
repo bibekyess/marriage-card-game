@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownUp, ArrowDownToLine, ArrowUp, BarChart3, Eye, Hand as HandIcon, Layers, Lightbulb, Maximize, Menu, Minimize, ScrollText, Sparkles, Trophy, WandSparkles, WifiOff } from "lucide-react";
+import { ArrowDownUp, ArrowDownToLine, ArrowUp, BarChart3, Eye, Hand as HandIcon, Layers, Lightbulb, Maximize, Menu, Minimize, RotateCcw, ScrollText, Sparkles, Trophy, WandSparkles, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -190,6 +190,10 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   useEffect(iPhoneInstallTip, []);
   const [scores, setScores] = useState(false);
   const [thrownFor, setThrownFor] = useState<string | null>(null);
+  // Drag-to-throw: the discard slot the hand aims at, the hover state, and the card in flight.
+  const discardSlot = useRef<HTMLDivElement>(null);
+  const [dropState, setDropState] = useState<true | string | null>(null);
+  const [thrown, setThrown] = useState<{ id: CardId; landed: boolean } | null>(null);
   const [panelOpen, setPanelOpen] = useActivityPanel();
   const [activitySheet, setActivitySheet] = useState(false);
   // Desktop has room for the log beside the table; smaller screens open it as a sheet.
@@ -299,6 +303,11 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
     setLaid(f.groups.map(readingOrder));
     setSelected(new Set([f.discard]));
   };
+  // Take back every laid-down set, so the player can build the finish themselves.
+  const rearrange = () => {
+    setLaid([]);
+    setSelected(new Set());
+  };
   const showState = seated && !me?.autoplay ? computeShowState(v, h, selected, connected && h.myTurn) : null;
   const tunnels = canDraw && v.canOpenTunnels ? findTunnels(v.hand) : [];
 
@@ -334,7 +343,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
     hint = `You're watching${v.seats.length >= MAX_PLAYERS ? " — the table is full" : " — you'll be dealt in next round"}. ${turnName}'s turn.`;
   else if (me?.autoplay) hint = "A bot is playing for you";
   else if (canDraw && v.canOpenTunnels) hint = "Show your tunnela before you draw — they only score if shown now";
-  else if (finishing && winCard) hint = `Throw your last card to win!`;
+  else if (finishing && winCard) hint = "Tap Win to finish, or Rearrange to change your sets";
   else if (finishing && laidNow.length) hint = `${laidNow.length} set${laidNow.length > 1 ? "s" : ""} laid down — keep going, or tap a set to take it back`;
   else if (discardPhase && h.canDeclare) hint = "You can finish — select a set and tap Lay down, or Arrange for me";
   else if ((canDraw || discardPhase) && showState?.enabled) hint = `Ready — tap Show to see the maal${canDraw ? ", or draw" : ""}`;
@@ -345,6 +354,15 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   else hint = `${turnName} is playing…`;
 
   const discard = (c: CardId) => run("discard", { card: c });
+  // Once sets are laid down, only the Win button finishes: a stray drag must not throw the card as a plain discard.
+  const canThrow = (c: CardId): true | string =>
+    laidNow.length ? "Tap Win to finish" : c === v.picked ? "Can't throw back" : isBhoot(c) ? "Can't throw Bhoot" : true;
+  const throwCard = async (c: CardId) => {
+    setThrown({ id: c, landed: false });
+    const ok = await discard(c);
+    if (!ok) setThrown(null);
+    return ok;
+  };
   const show = (route: "pure" | "dublee") => run("show", { route, cards: [...selected] }).then((ok) => ok && setSelected(new Set()));
 
   const myTotal = seated ? totals(v)[v.you] ?? 0 : 0;
@@ -381,10 +399,17 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
       <Button size={btn} variant="gold" onClick={() => run("openTunnels")} data-testid="open-tunnels" className="animate-pulse-ring">
         <Sparkles /> Show {tunnels.length} tunnela
       </Button>
-    ) : winCard ? (
-      <Button size={btn} variant="gold" onClick={win} data-testid="declare" className="animate-pulse-ring">
-        <Trophy /> {vp.w >= 400 ? `Discard ${cardLabel(winCard)} & win` : "Win"}
-      </Button>
+    ) : laidNow.length ? (
+      <>
+        <Button size={btn} variant="secondary" className={toolBtn} onClick={rearrange} aria-label="Rearrange" title="Rearrange" data-testid="rearrange">
+          <RotateCcw /> {vp.w >= 400 && "Rearrange"}
+        </Button>
+        {winCard && (
+          <Button size={btn} variant="gold" onClick={win} data-testid="declare" className="animate-pulse-ring">
+            <Trophy /> {vp.w >= 400 ? `Discard ${cardLabel(winCard)} & win` : "Win"}
+          </Button>
+        )}
+      </>
     ) : finishing && h.canDeclare ? (
       <Button size={btn} variant="secondary" className={toolBtn} onClick={arrangeForMe} data-testid="arrange-for-me">
         <WandSparkles /> {vp.w < 520 ? "Arrange" : "Arrange for me"}
@@ -539,6 +564,9 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
               canDraw={canDraw}
               canPickDiscard={canDraw && h.canPickDiscard}
               thrownBy={v.discardBy ? (v.discardBy === v.you ? "You" : nameOf(v, v.discardBy)) : null}
+              slotRef={discardSlot}
+              dropState={discardPhase ? dropState : null}
+              incoming={thrown}
               onDraw={(from) => run("draw", { from })}
             />
           </div>
@@ -644,7 +672,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
               )}
               {discardPhase &&
                 !me?.autoplay &&
-                !winCard &&
+                !laidNow.length &&
                 selected.size <= 1 &&
                 (!one || one === v.picked || isBhoot(one) ? (
                   <Button size={btn} variant="outline" className="border-gold/50 text-gold/90 disabled:opacity-80" disabled data-testid="discard-btn">
@@ -693,7 +721,11 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
                 const full = [...o, ...handOrder.filter((c) => laidSet.has(c))];
                 arrangeGroups(full, moved ? afterDrag(groups, full, moved) : groups);
               }}
-              onSwipeUp={discardPhase ? (c) => c !== v.picked && !isBhoot(c) && discard(c) : undefined}
+              canThrow={discardPhase ? canThrow : undefined}
+              onThrow={throwCard}
+              onLanded={(c) => setThrown((t) => (t?.id === c ? { ...t, landed: true } : t))}
+              onThrowHover={setDropState}
+              discardRef={discardSlot}
               dealKey={`${v.code}:${v.round}`}
             />
           </div>
