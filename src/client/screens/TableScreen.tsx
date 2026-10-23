@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownUp, ArrowDownToLine, ArrowUp, BarChart3, Eye, Hand as HandIcon, Layers, Lightbulb, Maximize, Menu, Minimize, ScrollText, Sparkles, Trophy, WandSparkles, WifiOff } from "lucide-react";
+import { ArrowDownUp, ArrowDownToLine, ArrowUp, BarChart3, Eye, Hand as HandIcon, Layers, Lightbulb, Maximize, Menu, Minimize, RotateCcw, ScrollText, Sparkles, Trophy, WandSparkles, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -303,6 +303,11 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
     setLaid(f.groups.map(readingOrder));
     setSelected(new Set([f.discard]));
   };
+  // Take back every laid-down set, so the player can build the finish themselves.
+  const rearrange = () => {
+    setLaid([]);
+    setSelected(new Set());
+  };
   const showState = seated && !me?.autoplay ? computeShowState(v, h, selected, connected && h.myTurn) : null;
   const tunnels = canDraw && v.canOpenTunnels ? findTunnels(v.hand) : [];
 
@@ -338,7 +343,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
     hint = `You're watching${v.seats.length >= MAX_PLAYERS ? " — the table is full" : " — you'll be dealt in next round"}. ${turnName}'s turn.`;
   else if (me?.autoplay) hint = "A bot is playing for you";
   else if (canDraw && v.canOpenTunnels) hint = "Show your tunnela before you draw — they only score if shown now";
-  else if (finishing && winCard) hint = `Throw your last card to win!`;
+  else if (finishing && winCard) hint = "Tap Win to finish, or Rearrange to change your sets";
   else if (finishing && laidNow.length) hint = `${laidNow.length} set${laidNow.length > 1 ? "s" : ""} laid down — keep going, or tap a set to take it back`;
   else if (discardPhase && h.canDeclare) hint = "You can finish — select a set and tap Lay down, or Arrange for me";
   else if ((canDraw || discardPhase) && showState?.enabled) hint = `Ready — tap Show to see the maal${canDraw ? ", or draw" : ""}`;
@@ -349,7 +354,9 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
   else hint = `${turnName} is playing…`;
 
   const discard = (c: CardId) => run("discard", { card: c });
-  const canThrow = (c: CardId): true | string => (c === v.picked ? "Can't throw back" : isBhoot(c) ? "Can't throw Bhoot" : true);
+  // Once sets are laid down, only the Win button finishes: a stray drag must not throw the card as a plain discard.
+  const canThrow = (c: CardId): true | string =>
+    laidNow.length ? "Tap Win to finish" : c === v.picked ? "Can't throw back" : isBhoot(c) ? "Can't throw Bhoot" : true;
   const throwCard = async (c: CardId) => {
     setThrown({ id: c, landed: false });
     const ok = await discard(c);
@@ -392,10 +399,17 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
       <Button size={btn} variant="gold" onClick={() => run("openTunnels")} data-testid="open-tunnels" className="animate-pulse-ring">
         <Sparkles /> Show {tunnels.length} tunnela
       </Button>
-    ) : winCard ? (
-      <Button size={btn} variant="gold" onClick={win} data-testid="declare" className="animate-pulse-ring">
-        <Trophy /> {vp.w >= 400 ? `Discard ${cardLabel(winCard)} & win` : "Win"}
-      </Button>
+    ) : laidNow.length ? (
+      <>
+        <Button size={btn} variant="secondary" className={toolBtn} onClick={rearrange} aria-label="Rearrange" title="Rearrange" data-testid="rearrange">
+          <RotateCcw /> {vp.w >= 400 && "Rearrange"}
+        </Button>
+        {winCard && (
+          <Button size={btn} variant="gold" onClick={win} data-testid="declare" className="animate-pulse-ring">
+            <Trophy /> {vp.w >= 400 ? `Discard ${cardLabel(winCard)} & win` : "Win"}
+          </Button>
+        )}
+      </>
     ) : finishing && h.canDeclare ? (
       <Button size={btn} variant="secondary" className={toolBtn} onClick={arrangeForMe} data-testid="arrange-for-me">
         <WandSparkles /> {vp.w < 520 ? "Arrange" : "Arrange for me"}
@@ -658,7 +672,7 @@ export function TableScreen({ view: v, connected }: { view: TableView; connected
               )}
               {discardPhase &&
                 !me?.autoplay &&
-                !winCard &&
+                !laidNow.length &&
                 selected.size <= 1 &&
                 (!one || one === v.picked || isBhoot(one) ? (
                   <Button size={btn} variant="outline" className="border-gold/50 text-gold/90 disabled:opacity-80" disabled data-testid="discard-btn">
