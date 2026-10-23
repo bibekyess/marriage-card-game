@@ -58,15 +58,6 @@ export function App() {
 
   return (
     <TooltipProvider delayDuration={300}>
-      {/* Shared gradient used by the court-card emblems. */}
-      <svg width="0" height="0" className="absolute" aria-hidden>
-        <defs>
-          <linearGradient id="mg-gold" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#ffd77a" />
-            <stop offset="1" stopColor="#c98a12" />
-          </linearGradient>
-        </defs>
-      </svg>
       {screen}
       <Toaster />
     </TooltipProvider>
